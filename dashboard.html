@@ -30,11 +30,13 @@
     </div>
     <div class="card">
       <label>Station Selection</label>
-      <select id="devSel" onchange="handleDropdownChange(this.value)" style="width:100%; padding:8px;"></select>
+      <select id="devSel" onchange="handleDropdownChange(this.value)" style="width:100%; padding:8px;">
+          <option value="">Connecting to Network...</option>
+      </select>
     </div>
     <div class="card" style="min-height: 160px; text-align: center;">
       <label>Live Station Reading</label>
-      <div id="statName" style="font-weight:bold; font-size:0.9rem; color:#333; margin-bottom:5px;">Loading Network...</div>
+      <div id="statName" style="font-weight:bold; font-size:0.9rem; color:#333; margin-bottom:5px;">Initializing...</div>
       <div id="statAQI" class="aqi-val" style="color:#ccc;">--</div>
       <div style="font-size:0.75rem; color:#666; font-weight: bold;">CUMULATIVE CE-AQI</div>
       <div id="healthAdvice" class="health-msg" style="display:none; font-size:0.8rem; margin-top:10px; padding:8px; border:1px solid #eee;"></div>
@@ -60,7 +62,7 @@
 
 <script>
   const PURPLE_AIR_KEY = "9ADB5C6C-A9B0-11EF-A261-42010A80000F";
-  // This proxy works better for static sites like GitHub Pages
+  // The "AllOrigins" proxy is better for GitHub sites as it avoids direct domain blocks
   const PROXY = "https://api.allorigins.win/raw?url=";
 
   const SENSORS = {
@@ -99,7 +101,8 @@
   async function updateDisplay(id) {
     if(!id) return;
     const start = Math.floor(Date.now()/1000)-86400;
-    const url = `${PROXY}${encodeURIComponent(`https://api.purpleair.com/v1/sensors/${id}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`)}`;
+    const apiUrl = `https://api.purpleair.com/v1/sensors/${id}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`;
+    const url = `${PROXY}${encodeURIComponent(apiUrl)}`;
     try {
       const res = await fetch(url, { headers: { "X-API-Key": PURPLE_AIR_KEY } });
       const json = await res.json();
@@ -118,10 +121,12 @@
 
   async function init() {
     const sel = document.getElementById('devSel');
-    const url = `${PROXY}${encodeURIComponent("https://api.purpleair.com/v1/sensors?nwlng=-77.1&nwlat=39.0&selng=-76.8&selat=38.8&fields=sensor_index,latitude,longitude,pm2.5_atm")}`;
+    const apiUrl = "https://api.purpleair.com/v1/sensors?nwlng=-77.1&nwlat=39.0&selng=-76.8&selat=38.8&fields=sensor_index,latitude,longitude,pm2.5_atm";
+    const url = `${PROXY}${encodeURIComponent(apiUrl)}`;
     try {
       const res = await fetch(url, { headers: { "X-API-Key": PURPLE_AIR_KEY } }).then(r=>r.json());
       if(res.data) {
+        sel.innerHTML = '<option value="">Select a Station...</option>';
         res.data.forEach(r => {
           const id = String(r[0]);
           if (SENSORS[id]) {
@@ -132,11 +137,14 @@
           }
         });
       }
-    } catch(e) { console.error("Sensor list error:", e); }
+    } catch(e) { 
+        console.error("Sensor list error:", e);
+        document.getElementById('statName').innerText = "Network Error - check API Key / Proxy";
+    }
     
     updateDisplay("203577");
-    // This part ensures the map renders fully on the page
-    setTimeout(() => { map.invalidateSize(); }, 800);
+    // Critical: Ensures the map "wakes up" and fills the container on GitHub
+    setTimeout(() => { map.invalidateSize(); }, 1000);
   }
   init();
 </script>
