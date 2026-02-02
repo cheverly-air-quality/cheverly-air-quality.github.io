@@ -1,24 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EJAT Cheverly Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+  <style>
+    body { margin: 0; display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; background: #f4f7f9; }
+    header { height: 60px; background: #1a2a40; color: white; display: flex; align-items: center; padding: 0 20px; font-weight: bold; }
+    #layout { display: flex; flex: 1; overflow: hidden; }
+    #sidebar { width: 320px; background: white; border-right: 1px solid #ccc; padding: 20px; overflow-y: auto; }
+    #main-content { flex: 1; display: flex; flex-direction: column; }
+    #map { flex: 1; background: #e0e0e0; }
+    #chart-box { height: 280px; background: white; border-top: 1px solid #ccc; padding: 10px; }
+    .card { background: #fff; border: 1px solid #eee; padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .aqi-val { font-size: 3rem; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+<header>Cheverly Air Quality Dashboard</header>
+
+<div id="layout">
+  <aside id="sidebar">
+    <div class="card">
+      <label style="font-weight:bold;">Station Selection</label>
+      <select id="devSel" onchange="updateDisplay(this.value)" style="width:100%; padding:8px; margin-top:5px;"></select>
+    </div>
+
+    <div class="card" style="text-align:center;">
+      <div id="statName" style="font-weight:bold; color:#555;">Loading...</div>
+      <div id="statAQI" class="aqi-val">--</div>
+      <div style="font-size: 0.7rem; font-weight: bold; color: #888;">CUMULATIVE CE-AQI</div>
+    </div>
+  </aside>
+
+  <div id="main-content">
+    <div id="map"></div>
+    <div id="chart-box"><canvas id="airChart"></canvas></div>
+  </div>
+</div>
+
 <script>
   const API_KEY = "9ADB5C6C-A9B0-11EF-A261-42010A80000F";
   const PROXY = "https://cors-anywhere.herokuapp.com/"; 
 
+  // Your full station list
   const SENSORS = {
     "284362": "EJAT.PG.1.284362", "52823": "EJAT.CV.6.52823", "53677": "EJAT.CV.1.53677",
     "54239": "EJAT.CV.6.54239", "54293": "EJAT.CV.2.54293", "57777": "EJAT.CV.1.57777",
-    "203577": "EJAT.CV.2.203577", "181253": "EJAT.CH.1.181253", "218273": "EJAT.PG.1.218273"
+    "57783": "EJAT.CV.6.57783", "57811": "EJAT.CV.4.57811", "57841": "EJAT.CV.3.57841",
+    "57955": "EJAT.FH.1.57955", "160037": "EJAT.PG.1.160037", "175563": "EJAT.PG.1.175563",
+    "178169": "EJAT.PG.1.178169", "181253": "EJAT.CH.1.181253", "184191": "EJAT.PG.1.184191",
+    "185085": "EJAT.FH.1.185085", "197937": "EJAT.PG.1.197937", "203577": "EJAT.CV.2.203577 (Supersite)",
+    "203597": "EJAT.FH.1.203597", "203601": "EJAT.CV.1.203601", "207729": "EJAT.CV.1.207729",
+    "211993": "EJAT.CV.3.211993", "218227": "EJAT.PG.1.218227", "218237": "EJAT.PG.1.218237",
+    "218273": "EJAT.PG.1.218273"
   };
 
-  let markers = {}; 
+  let markers = {};
   const map = L.map('map').setView([38.922, -76.915], 14);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
   const chart = new Chart(document.getElementById('airChart').getContext('2d'), {
     type: 'line',
-    data: { datasets: [{ label: 'AQI History (24h)', data: [], borderColor: '#4477ce', tension: 0.1, fill: true, backgroundColor: 'rgba(68, 119, 206, 0.1)' }] },
+    data: { datasets: [{ label: '24-Hour AQI History', data: [], borderColor: '#4477ce', tension: 0.1, fill: true, backgroundColor: 'rgba(68, 119, 206, 0.1)' }] },
     options: { 
-      responsive: true, 
-      maintainAspectRatio: false, 
-      scales: { x: { type: 'time', time: { unit: 'hour' } } } 
+      responsive: true, maintainAspectRatio: false, 
+      scales: { x: { type: 'time', time: { unit: 'hour' } }, y: { beginAtZero: true } } 
     }
   });
 
@@ -26,33 +77,13 @@
     if (aqi <= 50) return "#00e400"; if (aqi <= 100) return "#ffff00"; if (aqi <= 150) return "#ff7e00"; return "#ff0000";
   }
 
-  // --- NEW: Find Nearest Station Logic ---
-  async function findNearest() {
-    const address = document.getElementById('addrInput').value;
-    if(!address) return alert("Please enter an address");
-    
-    // Geocoding to turn address into Lat/Lng
-    const geoUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ", Cheverly, MD")}`;
-    const resp = await fetch(geoUrl);
-    const data = await resp.json();
-    
-    if(data.length > 0) {
-      const userLoc = L.latLng(data[0].lat, data[0].lon);
-      map.setView(userLoc, 16);
-      L.marker(userLoc).addTo(map).bindPopup("Your Location").openPopup();
-    } else {
-      alert("Address not found in Cheverly.");
-    }
-  }
-
   async function init() {
-    const url = `${PROXY}https://api.purpleair.com/v1/sensors?nwlng=-77.1&nwlat=39.0&selng=-76.8&selat=38.8&fields=sensor_index,pm2.5_atm,latitude,longitude`;
+    // Increased the bounding box slightly to capture all EJAT stations
+    const url = `${PROXY}https://api.purpleair.com/v1/sensors?nwlng=-77.2&nwlat=39.1&selng=-76.7&selat=38.7&fields=sensor_index,pm2.5_atm,latitude,longitude`;
     
     try {
-      const response = await fetch(url, {
-        headers: { "X-API-Key": API_KEY, "X-Requested-With": "XMLHttpRequest" }
-      });
-      const res = await response.json();
+      const resp = await fetch(url, { headers: { "X-API-Key": API_KEY, "X-Requested-With": "XMLHttpRequest" } });
+      const res = await resp.json();
       const sel = document.getElementById('devSel');
       sel.innerHTML = '<option value="">Select a Station</option>';
 
@@ -67,7 +98,7 @@
         }
       });
       updateDisplay("203577"); 
-    } catch (e) { console.error("Init Error", e); }
+    } catch (e) { console.error("Initialization Failed:", e); }
   }
 
   async function updateDisplay(id) {
@@ -76,24 +107,27 @@
     const url = `${PROXY}https://api.purpleair.com/v1/sensors/${id}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`;
     
     try {
-      const response = await fetch(url, { headers: { "X-API-Key": API_KEY, "X-Requested-With": "XMLHttpRequest" } });
-      const res = await response.json();
+      const resp = await fetch(url, { headers: { "X-API-Key": API_KEY, "X-Requested-With": "XMLHttpRequest" } });
+      const res = await resp.json();
       
-      // CRITICAL FIX: Sort the data by timestamp so the chart line isn't shaky
-      const sortedData = res.data.sort((a, b) => a[0] - b[0]);
+      // FIX 1: SORT DATA BY TIMESTAMP (This stops the "shaky" lines)
+      const sorted = res.data.sort((a, b) => a[0] - b[0]);
       
-      const latest = sortedData[sortedData.length - 1][1];
+      const latest = sorted[sorted.length - 1][1];
       document.getElementById('statAQI').innerText = Math.round(latest);
       document.getElementById('statAQI').style.color = getAQIColor(latest);
       document.getElementById('statName').innerText = SENSORS[id];
 
-      chart.data.datasets[0].data = sortedData.map(r => ({ x: r[0]*1000, y: r[1] }));
+      // FIX 2: MAP DATA CORRECTLY
+      chart.data.datasets[0].data = sorted.map(r => ({ x: r[0]*1000, y: r[1] }));
       chart.update();
       
-      if(markers[id]) { map.panTo(markers[id].getLatLng()); markers[id].openPopup(); }
-    } catch (e) { console.error("Update Error", e); }
+      if(markers[id]) { map.flyTo(markers[id].getLatLng(), 15); markers[id].openPopup(); }
+    } catch (e) { console.error("Update Error:", e); }
   }
 
   init();
   setTimeout(() => map.invalidateSize(), 1000);
 </script>
+</body>
+</html>
