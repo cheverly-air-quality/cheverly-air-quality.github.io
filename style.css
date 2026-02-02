@@ -1,0 +1,35 @@
+:root {
+  --brand-navy: #1a305e;
+  --search-blue: #4477ce;
+  --orange: #f59e0b;
+}
+
+body { margin: 0; font-family: "Segoe UI", sans-serif; background: #fdfdfd; }
+.topbar { background: var(--brand-navy); color: white; padding: 0 25px; display: flex; justify-content: space-between; align-items: center; height: 60px; }
+.brand { font-weight: bold; font-size: 1.1rem; }
+.nav a { color: white; text-decoration: none; margin-left: 20px; font-size: 0.9rem; opacity: 0.8; }
+.nav a.active { opacity: 1; font-weight: bold; border-bottom: 2px solid white; }
+
+#layout { display: flex; height: calc(100vh - 60px); width: 100vw; }
+#sidebar { width: 380px; background: #f4f6f8; border-right: 1px solid #ddd; padding: 15px; overflow-y: auto; box-sizing: border-box; }
+.card { background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 12px; }
+
+.aqi-val { font-size: 72px; font-weight: 900; line-height: 1.1; text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000; }
+.health-msg { margin-top: 10px; font-size: 0.8rem; padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 4px; }
+
+#map { height: 45%; width: 100%; }
+#chart-box { height: 55%; width: 100%; padding: 15px; box-sizing: border-box; }
+
+.hero { background: var(--brand-navy); color: white; padding: 60px 20px; text-align: center; }
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+.tiles { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.tile { color: white; padding: 20px; border-radius: 12px; text-decoration: none; }
+.tile--blue { background: var(--search-blue); }
+.tile--green { background: #22c55e; }
+.tile--orange { background: var(--orange); }
+.tile--purple { background: #8f3f97; }
+.tile--pink { background: #ec4899; }
+
+.action-card { background: #fdf2f2; border-left: 5px solid #ff0000; padding: 20px; margin-top: 20px; }
+.legend-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 0.85rem; font-weight: 600; }
+.dot { width: 18px; height: 18px; border-radius: 50%; margin-right: 12px; border: 2px solid #000; display: inline-block; }
