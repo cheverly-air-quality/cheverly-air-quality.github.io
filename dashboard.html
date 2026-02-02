@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EJAT Cheverly Dashboard</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -9,37 +10,54 @@
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
   <style>
     body { margin: 0; display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; background: #f4f7f9; }
-    header { height: 60px; background: #1a2a40; color: white; display: flex; align-items: center; padding: 0 20px; font-weight: bold; }
+    header { height: 60px; background: #1a2a40; color: white; display: flex; align-items: center; padding: 0 20px; font-weight: bold; justify-content: space-between; }
     #layout { display: flex; flex: 1; overflow: hidden; }
-    #sidebar { width: 320px; background: white; border-right: 1px solid #ccc; padding: 20px; overflow-y: auto; }
+    #sidebar { width: 320px; background: white; border-right: 1px solid #ccc; padding: 20px; overflow-y: auto; z-index: 100; }
     #main-content { flex: 1; display: flex; flex-direction: column; }
-    #map { flex: 1; background: #e0e0e0; }
-    #chart-box { height: 280px; background: white; border-top: 1px solid #ccc; padding: 10px; }
+    #map { flex: 1; background: #e0e0e0; border-bottom: 2px solid #ccc; }
+    #chart-box { height: 280px; background: white; padding: 15px; }
     .card { background: #fff; border: 1px solid #eee; padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .aqi-val { font-size: 3rem; font-weight: bold; }
+    .aqi-val { font-size: 3.5rem; font-weight: bold; margin: 10px 0; }
+    .nav-links a { color: white; text-decoration: none; margin-left: 15px; font-size: 0.9rem; }
+    #status-msg { font-size: 0.75rem; color: #666; font-family: monospace; }
   </style>
 </head>
 <body>
 
-<header>Cheverly Air Quality Dashboard</header>
+<header>
+  <div>Cheverly Air Quality Dashboard</div>
+  <nav class="nav-links">
+    <a href="index.html">Home</a>
+    <a href="dashboard.html" style="border-bottom: 2px solid white;">Dashboard</a>
+  </nav>
+</header>
 
 <div id="layout">
   <aside id="sidebar">
     <div class="card">
-      <label style="font-weight:bold;">Station Selection</label>
-      <select id="devSel" onchange="updateDisplay(this.value)" style="width:100%; padding:8px; margin-top:5px;"></select>
+      <label style="font-weight:bold; font-size: 0.85rem;">Station Selection</label>
+      <select id="devSel" onchange="updateDisplay(this.value)" style="width:100%; padding:10px; margin-top:8px; border-radius:4px; border:1px solid #ccc;"></select>
     </div>
 
     <div class="card" style="text-align:center;">
-      <div id="statName" style="font-weight:bold; color:#555;">Loading...</div>
-      <div id="statAQI" class="aqi-val">--</div>
-      <div style="font-size: 0.7rem; font-weight: bold; color: #888;">CUMULATIVE CE-AQI</div>
+      <div id="statName" style="font-weight:bold; color:#333; font-size: 1rem;">Scanning Network...</div>
+      <div id="statAQI" class="aqi-val" style="color: #999;">--</div>
+      <div style="font-size: 0.7rem; font-weight: bold; color: #888; letter-spacing: 1px;">CUMULATIVE CE-AQI</div>
+      <div id="status-msg" style="margin-top:15px;">Initializing...</div>
+    </div>
+    
+    <div class="card">
+      <p style="font-size: 0.8rem; color: #666; line-height: 1.4;">
+        <strong>Note:</strong> Data is pulled from the EJAT PurpleAir network and calculated using the Cheverly Cumulative Exposure (CE-AQI) formula.
+      </p>
     </div>
   </aside>
 
   <div id="main-content">
     <div id="map"></div>
-    <div id="chart-box"><canvas id="airChart"></canvas></div>
+    <div id="chart-box">
+      <canvas id="airChart"></canvas>
+    </div>
   </div>
 </div>
 
@@ -47,7 +65,6 @@
   const API_KEY = "9ADB5C6C-A9B0-11EF-A261-42010A80000F";
   const PROXY = "https://cors-anywhere.herokuapp.com/"; 
 
-  // Your full station list
   const SENSORS = {
     "284362": "EJAT.PG.1.284362", "52823": "EJAT.CV.6.52823", "53677": "EJAT.CV.1.53677",
     "54239": "EJAT.CV.6.54239", "54293": "EJAT.CV.2.54293", "57777": "EJAT.CV.1.57777",
@@ -61,15 +78,19 @@
   };
 
   let markers = {};
-  const map = L.map('map').setView([38.922, -76.915], 14);
+  const map = L.map('map').setView([38.925, -76.915], 14); // Centered on Cheverly
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
   const chart = new Chart(document.getElementById('airChart').getContext('2d'), {
     type: 'line',
-    data: { datasets: [{ label: '24-Hour AQI History', data: [], borderColor: '#4477ce', tension: 0.1, fill: true, backgroundColor: 'rgba(68, 119, 206, 0.1)' }] },
+    data: { datasets: [{ label: 'AQI History (24h)', data: [], borderColor: '#1a2a40', tension: 0.2, fill: true, backgroundColor: 'rgba(26, 42, 64, 0.1)' }] },
     options: { 
-      responsive: true, maintainAspectRatio: false, 
-      scales: { x: { type: 'time', time: { unit: 'hour' } }, y: { beginAtZero: true } } 
+      responsive: true, 
+      maintainAspectRatio: false, 
+      scales: { 
+        x: { type: 'time', time: { unit: 'hour' } },
+        y: { beginAtZero: true, title: { display: true, text: 'AQI' } }
+      } 
     }
   });
 
@@ -78,27 +99,44 @@
   }
 
   async function init() {
-    // Increased the bounding box slightly to capture all EJAT stations
-    const url = `${PROXY}https://api.purpleair.com/v1/sensors?nwlng=-77.2&nwlat=39.1&selng=-76.7&selat=38.7&fields=sensor_index,pm2.5_atm,latitude,longitude`;
+    // Corrected Cheverly Bounding Box Coordinates
+    const url = `${PROXY}https://api.purpleair.com/v1/sensors?nwlng=-76.96&nwlat=38.96&selng=-76.87&selat=38.89&fields=sensor_index,pm2.5_atm,latitude,longitude`;
     
     try {
+      document.getElementById('status-msg').innerText = "Connecting to API...";
       const resp = await fetch(url, { headers: { "X-API-Key": API_KEY, "X-Requested-With": "XMLHttpRequest" } });
       const res = await resp.json();
+      
       const sel = document.getElementById('devSel');
       sel.innerHTML = '<option value="">Select a Station</option>';
 
+      let count = 0;
       res.data.forEach(r => {
         const id = String(r[0]);
         if (SENSORS[id]) {
-          const m = L.circleMarker([r[2], r[3]], { radius: 10, fillColor: getAQIColor(r[1]), color: "#000", weight: 1, fillOpacity: 0.8 }).addTo(map);
+          count++;
+          const m = L.circleMarker([r[2], r[3]], { 
+            radius: 12, 
+            fillColor: getAQIColor(r[1]), 
+            color: "#000", 
+            weight: 2, 
+            fillOpacity: 0.9 
+          }).addTo(map);
+          
           m.bindPopup(`<b>${SENSORS[id]}</b>`);
           markers[id] = m;
           sel.add(new Option(SENSORS[id], id));
+          
           m.on('click', () => { sel.value = id; updateDisplay(id); });
         }
       });
-      updateDisplay("203577"); 
-    } catch (e) { console.error("Initialization Failed:", e); }
+      
+      document.getElementById('status-msg').innerText = `Active: ${count} Stations`;
+      if (markers["203577"]) updateDisplay("203577");
+    } catch (e) { 
+      document.getElementById('status-msg').innerText = "Auth Required (Check Console)";
+      console.error(e); 
+    }
   }
 
   async function updateDisplay(id) {
@@ -110,7 +148,7 @@
       const resp = await fetch(url, { headers: { "X-API-Key": API_KEY, "X-Requested-With": "XMLHttpRequest" } });
       const res = await resp.json();
       
-      // FIX 1: SORT DATA BY TIMESTAMP (This stops the "shaky" lines)
+      // FIX: Sort by timestamp to prevent shaky chart lines
       const sorted = res.data.sort((a, b) => a[0] - b[0]);
       
       const latest = sorted[sorted.length - 1][1];
@@ -118,7 +156,6 @@
       document.getElementById('statAQI').style.color = getAQIColor(latest);
       document.getElementById('statName').innerText = SENSORS[id];
 
-      // FIX 2: MAP DATA CORRECTLY
       chart.data.datasets[0].data = sorted.map(r => ({ x: r[0]*1000, y: r[1] }));
       chart.update();
       
@@ -127,7 +164,7 @@
   }
 
   init();
-  setTimeout(() => map.invalidateSize(), 1000);
+  setTimeout(() => map.invalidateSize(), 1000); // Forces map to fill container on load
 </script>
 </body>
 </html>
