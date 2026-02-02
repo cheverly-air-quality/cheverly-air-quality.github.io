@@ -10,7 +10,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 </head>
-<body style="overflow: hidden;">
+<body style="overflow: hidden; height: 100vh;">
 
 <header class="topbar">
   <div class="brand">Cheverly, MD Air Quality Dashboard</div>
@@ -21,7 +21,7 @@
   </nav>
 </header>
 
-<div id="layout">
+<div id="layout" style="display: flex; height: calc(100vh - 60px);">
   <aside id="sidebar">
     <div class="card">
       <label>Location Search</label>
@@ -30,11 +30,13 @@
     </div>
     <div class="card">
       <label>Station Selection</label>
-      <select id="devSel" onchange="handleDropdownChange(this.value)"></select>
+      <select id="devSel" onchange="handleDropdownChange(this.value)">
+          <option value="">Select a Station...</option>
+      </select>
     </div>
     <div class="card" style="min-height: 160px; text-align: center;">
       <label>Live Station Reading</label>
-      <div id="statName" style="font-weight:bold; font-size:0.9rem; color:#333; margin-bottom:5px;">--</div>
+      <div id="statName" style="font-weight:bold; font-size:0.9rem; color:#333; margin-bottom:5px;">Loading...</div>
       <div id="statAQI" class="aqi-val" style="color:#ccc;">--</div>
       <div style="font-size:0.75rem; color:#666; font-weight: bold;">CUMULATIVE CE-AQI</div>
       <div id="healthAdvice" class="health-msg" style="display:none;"></div>
@@ -47,14 +49,15 @@
       <div class="legend-item"><span class="dot" style="background:#ff0000"></span> Unhealthy (151+)</div>
     </div>
   </aside>
-  <div id="main-content">
-    <div id="map"></div>
-    <div id="chart-box"><canvas id="airChart"></canvas></div>
+  <div id="main-content" style="flex: 1; display: flex; flex-direction: column;">
+    <div id="map" style="flex: 1; min-height: 400px;"></div>
+    <div id="chart-box" style="height: 300px; padding: 15px; background: white;"><canvas id="airChart"></canvas></div>
   </div>
 </div>
 
 <script>
   const PURPLE_AIR_KEY = "9ADB5C6C-A9B0-11EF-A261-42010A80000F";
+  // Updated Proxy for GitHub stability
   const PROXY = "https://api.allorigins.win/raw?url=";
 
   const SENSORS = {
@@ -69,6 +72,7 @@
     "218273": "EJAT.PG.1.218273"
   };
 
+  let markerMap = {};
   const map = L.map('map').setView([38.922, -76.915], 14);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
@@ -90,6 +94,7 @@
   }
 
   async function updateDisplay(id) {
+    if(!id) return;
     const start = Math.floor(Date.now()/1000)-86400;
     const url = `${PROXY}${encodeURIComponent(`https://api.purpleair.com/v1/sensors/${id}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`)}`;
     try {
@@ -122,8 +127,12 @@
           m.on('click', () => { sel.value = id; handleDropdownChange(id); });
         }
       });
-    } catch(e) { console.error(e); }
+    } catch(e) { 
+        console.error(e); 
+        document.getElementById('statName').innerText = "Error Loading Sensors. Check API Key.";
+    }
     updateDisplay("203577");
+    setTimeout(() => { map.invalidateSize(); }, 500); // Fixes the "small map" bug
   }
   init();
 </script>
