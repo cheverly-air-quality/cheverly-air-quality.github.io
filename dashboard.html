@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Cheverly EJAT Network</title>
+  <title>Cheverly Air Quality Dashboard</title>
   
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -11,34 +11,31 @@
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 
   <style>
-    :root { --navy: #1a305e; --blue: #4477ce; --orange: #f59e0b; }
-    body { margin: 0; font-family: sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-    .topbar { background: var(--navy); color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; z-index: 2000; }
-    .nav a { color: white; text-decoration: none; margin-left: 20px; font-size: 0.9rem; }
-    
+    :root { --navy: #1a305e; --blue: #4477ce; }
+    body { margin: 0; font-family: system-ui, -apple-system, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    .topbar { background: var(--navy); color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; z-index: 1000; }
+    .nav a { color: white; text-decoration: none; margin-left: 15px; font-size: 0.9rem; opacity: 0.8; }
     #layout { display: flex; flex: 1; min-height: 0; }
-    #sidebar { width: 360px; background: #f8f9fa; border-right: 1px solid #ddd; padding: 20px; overflow-y: auto; box-sizing: border-box; }
+    #sidebar { width: 350px; background: #f4f6f8; border-right: 1px solid #ddd; padding: 15px; overflow-y: auto; box-sizing: border-box; }
     #main { flex: 1; display: flex; flex-direction: column; }
     #map { height: 45%; border-bottom: 1px solid #ddd; }
-    #chart-box { height: 55%; padding: 20px; background: white; box-sizing: border-box; }
-
+    #chart-box { height: 55%; padding: 15px; background: white; box-sizing: border-box; }
     .card { background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 15px; }
-    label { font-size: 0.7rem; font-weight: bold; color: #666; text-transform: uppercase; }
-    input, select { width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+    label { font-size: 0.75rem; font-weight: bold; color: #555; text-transform: uppercase; margin-bottom: 5px; display: block; }
+    input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; margin-bottom: 10px; }
     button { width: 100%; padding: 12px; background: var(--blue); color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
-    
-    .aqi-val { font-size: 64px; font-weight: 900; text-align: center; display: block; line-height: 1; margin: 10px 0; text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; }
-    .legend-item { display: flex; align-items: center; margin-bottom: 6px; font-size: 12px; font-weight: bold; }
-    .dot { width: 12px; height: 12px; border-radius: 50%; margin-right: 10px; border: 1px solid #333; }
-    .tri { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 12px solid var(--orange); margin-right: 10px; }
-    .search-ring { width: 10px; height: 10px; border-radius: 50%; border: 3px solid red; background: white; margin-right: 10px; }
+    .aqi-val { font-size: 64px; font-weight: 900; text-align: center; display: block; line-height: 1; margin: 10px 0; text-shadow: 1px 1px 0 #000, -1px -1px 0 #000; }
+    .legend-item { display: flex; align-items: center; margin-bottom: 5px; font-size: 12px; font-weight: 600; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid #333; }
+    .tri { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 10px solid #f59e0b; margin-right: 8px; }
+    .search-ring { width: 10px; height: 10px; border-radius: 50%; border: 3px solid red; background: white; margin-right: 8px; }
   </style>
 </head>
 <body>
 
 <div class="topbar">
-  <div>Cheverly EJAT Network</div>
-  <nav class="nav"><a href="index.html">Home</a><a href="dashboard.html" style="font-weight:bold">Dashboard</a></nav>
+  <div style="font-weight: bold;">Cheverly Air Quality</div>
+  <nav class="nav"><a href="index.html">Home</a><a href="dashboard.html" style="font-weight: bold; opacity: 1;">Dashboard</a></nav>
 </div>
 
 <div id="layout">
@@ -49,13 +46,13 @@
       <button onclick="findAddress()">Find Nearest Station</button>
     </div>
     <div class="card">
-      <label>Station Selection</label>
+      <label>Station List</label>
       <select id="devSel" onchange="handleSelect(this.value)"></select>
     </div>
-    <div class="card" style="text-align:center;">
-      <label id="statLabel">Current Reading</label>
+    <div class="card" style="text-align: center;">
+      <label id="statName">Current Status</label>
       <div id="aqiDisplay" class="aqi-val" style="color:#ccc;">--</div>
-      <div style="font-size:0.7rem; font-weight:bold; color:#555;">CE-AQI (Cumulative)</div>
+      <div style="font-size:0.7rem; font-weight:bold; color:#777;">CUMULATIVE CE-AQI</div>
       <hr style="margin:15px 0; border:0; border-top:1px solid #eee;">
       <div class="legend-item"><span class="dot" style="background:#00e400"></span> Good (0-50)</div>
       <div class="legend-item"><span class="dot" style="background:#ffff00"></span> Moderate (51-100)</div>
@@ -75,16 +72,15 @@
 <script>
   const API_KEY = "9ADB5C6C-A9B0-11EF-A261-42010A80000F";
   const DC_REF = "175563";
-  // Updated reliable proxy rotation
+  // Switching to a more robust proxy approach
   const PROXIES = [
-    "https://api.allorigins.win/raw?url=",
-    "https://thingproxy.freeboard.io/fetch/",
+    "https://api.allorigins.win/get?url=",
     "https://corsproxy.io/?"
   ];
   let pIdx = 0;
 
   const SENSORS = { "284362": "EJAT.PG.1.284362", "52823": "EJAT.CV.6.52823", "53677": "EJAT.CV.1.53677", "54239": "EJAT.CV.6.54239", "54293": "EJAT.CV.2.54293", "57777": "EJAT.CV.1.57777", "57783": "EJAT.CV.6.57783", "57811": "EJAT.CV.4.57811", "57841": "EJAT.CV.3.57841", "57955": "EJAT.FH.1.57955", "160037": "EJAT.PG.1.160037", "175563": "EJAT.PG.1.175563", "178169": "EJAT.PG.1.178169", "181253": "EJAT.CH.1.181253", "184191": "EJAT.PG.1.184191", "185085": "EJAT.FH.1.185085", "197937": "EJAT.PG.1.197937", "203577": "EJAT.CV.2.203577", "203597": "EJAT.FH.1.203597", "203601": "EJAT.CV.1.203601", "207729": "EJAT.CV.1.207729", "211993": "EJAT.CV.3.211993", "218227": "EJAT.PG.1.218227", "218237": "EJAT.PG.1.218237", "218273": "EJAT.PG.1.218273" };
-  const SPODS = [{ sn: "MOD-PM-001616", name: "EJAT.SPOD.CV.1616", lat: 38.9221, lon: -76.9215 }, { sn: "MOD-PM-001619", name: "EJAT.SPOD.CV.1619", lat: 38.9168, lon: -76.9100 }];
+  const SPODS = [{ sn: "1616", name: "EJAT.SPOD.CV.1616", lat: 38.9221, lon: -76.9215 }, { sn: "1619", name: "EJAT.SPOD.CV.1619", lat: 38.9168, lon: -76.9100 }];
 
   let markers = {}, searchMarker = null;
   const map = L.map('map').setView([38.923, -76.915], 14);
@@ -99,18 +95,26 @@
     options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time' }, y: { beginAtZero: true } } }
   });
 
-  async function call(url) {
+  async function call(endpoint) {
+    // Append API key directly to URL to avoid Header-based CORS blocks
+    const separator = endpoint.includes('?') ? '&' : '?';
+    const targetUrl = `${endpoint}${separator}api_key=${API_KEY}`;
+    
     for (let i = 0; i < PROXIES.length; i++) {
       try {
-        const full = `${PROXIES[pIdx]}${encodeURIComponent(url)}`;
-        const r = await fetch(full, { headers: { "X-API-Key": API_KEY } });
-        if (r.ok) return await r.json();
-      } catch (e) { pIdx = (pIdx + 1) % PROXIES.length; }
+        const proxyUrl = `${PROXIES[pIdx]}${encodeURIComponent(targetUrl)}`;
+        const response = await fetch(proxyUrl);
+        const json = await response.json();
+        // AllOrigins wraps content in a .contents property
+        return json.contents ? JSON.parse(json.contents) : json;
+      } catch (e) {
+        pIdx = (pIdx + 1) % PROXIES.length;
+      }
     }
-    throw "Fetch failed";
+    throw "API Unavailable";
   }
 
-  function getColor(v) {
+  function getAQIColor(v) {
     return v <= 50 ? "#00e400" : v <= 100 ? "#ffff00" : v <= 150 ? "#ff7e00" : "#ff0000";
   }
 
@@ -133,10 +137,10 @@
         searchMarker = L.circleMarker([lat, lon], { radius: 10, color: 'red', fillColor: 'white', fillOpacity: 1, weight: 3 }).addTo(map);
         map.flyTo([lat, lon], 16);
       }
-    } catch(e) { console.error(e); }
+    } catch(e) {}
   }
 
-  async function refresh(id) {
+  async function updateData(id) {
     const start = Math.floor(Date.now()/1000) - 86400;
     try {
       const [loc, dc] = await Promise.all([
@@ -148,18 +152,19 @@
       chart.data.datasets[1].data = parse(dc);
       chart.update();
       const val = chart.data.datasets[0].data.slice(-1)[0]?.y || 0;
-      document.getElementById('aqiDisplay').innerText = val;
-      document.getElementById('aqiDisplay').style.color = getColor(val);
-      document.getElementById('statLabel').innerText = SENSORS[id] || "Station Reading";
+      const display = document.getElementById('aqiDisplay');
+      display.innerText = val;
+      display.style.color = getAQIColor(val);
+      document.getElementById('statName').innerText = SENSORS[id] || "Station Reading";
     } catch(e) { document.getElementById('aqiDisplay').innerText = "ERR"; }
   }
 
-  function handleSelect(id) { if(markers[id]) { map.flyTo(markers[id].getLatLng(), 15); refresh(id); } }
+  function handleSelect(id) { if(markers[id]) { map.flyTo(markers[id].getLatLng(), 15); updateData(id); } }
 
   async function init() {
     const sel = document.getElementById('devSel');
     SPODS.forEach(s => {
-      const m = L.marker([s.lat, s.lon], { icon: L.divIcon({ className:'', html:`<div class="tri"></div>` })}).addTo(map);
+      const m = L.marker([s.lat, s.lon], { icon: L.divIcon({ className:'', html:'<div class="tri"></div>' })}).addTo(map);
       markers[s.sn] = m; sel.add(new Option(s.name, s.sn));
       m.on('click', () => { sel.value = s.sn; handleSelect(s.sn); });
     });
@@ -168,13 +173,14 @@
       res.data.forEach(r => {
         const id = String(r[0]);
         if (SENSORS[id]) {
-          const m = L.circleMarker([r[1], r[2]], { radius: 10, fillColor: getColor(toAQI(r[3])), color: "#000", weight: 2, fillOpacity: 0.9 }).addTo(map);
+          const aqi = toAQI(r[3]);
+          const m = L.circleMarker([r[1], r[2]], { radius: 10, fillColor: getAQIColor(aqi), color: "#000", weight: 2, fillOpacity: 0.9 }).addTo(map);
           markers[id] = m; sel.add(new Option(SENSORS[id], id));
           m.on('click', () => { sel.value = id; handleSelect(id); });
         }
       });
     } catch(e) {}
-    refresh("203577");
+    updateData("203577");
   }
   init();
 </script>
