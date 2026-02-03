@@ -12,44 +12,41 @@
 
   <style>
     :root { --navy: #1a305e; --blue: #4477ce; }
-    body { margin: 0; font-family: sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: #fdfdfd; }
-    .topbar { background: var(--navy); color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; z-index: 2000; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    body { margin: 0; font-family: system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: #fff; }
+    .topbar { background: var(--navy); color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; z-index: 2000; }
     #layout { display: flex; flex: 1; min-height: 0; }
-    #sidebar { width: 340px; background: #f8f9fa; border-right: 1px solid #ddd; padding: 15px; overflow-y: auto; box-sizing: border-box; }
-    #main { flex: 1; display: flex; flex-direction: column; }
-    #map { height: 45%; border-bottom: 1px solid #ddd; }
-    #chart-box { height: 55%; padding: 15px; background: white; box-sizing: border-box; }
-    .card { background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 12px; }
-    button { width: 100%; padding: 10px; background: var(--blue); color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; transition: opacity 0.2s; }
-    button:hover { opacity: 0.9; }
-    .aqi-val { font-size: 64px; font-weight: 900; text-align: center; display: block; line-height: 1; margin: 5px 0; text-shadow: 1px 1px 0 #000; }
+    #sidebar { width: 320px; background: #f8f9fa; border-right: 1px solid #ddd; padding: 15px; overflow-y: auto; box-sizing: border-box; }
+    #main { flex: 1; display: flex; flex-direction: column; position: relative; }
+    #map { height: 45%; border-bottom: 1px solid #ddd; width: 100%; }
+    #chart-box { height: 55%; padding: 15px; background: white; box-sizing: border-box; width: 100%; }
+    .card { background: white; padding: 12px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 10px; }
+    button { width: 100%; padding: 10px; background: var(--blue); color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+    .aqi-val { font-size: 52px; font-weight: 900; text-align: center; display: block; line-height: 1; margin: 10px 0; }
     .legend-item { display: flex; align-items: center; margin-bottom: 4px; font-size: 11px; font-weight: bold; }
     .dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; border: 1px solid #333; }
-    .loading-pulse { animation: pulse 1.5s infinite; opacity: 0.5; }
-    @keyframes pulse { 0% { opacity: 0.3; } 50% { opacity: 0.8; } 100% { opacity: 0.3; } }
   </style>
 </head>
 <body>
 
 <div class="topbar">
   <div style="font-weight:bold;">Cheverly EJAT Network</div>
-  <nav><a href="index.html" style="color:white; text-decoration:none; font-size:0.8rem; opacity:0.8;">Home</a></nav>
+  <nav><a href="index.html" style="color:white; text-decoration:none; font-size:0.8rem;">Home</a></nav>
 </div>
 
 <div id="layout">
   <aside id="sidebar">
     <div class="card">
-      <label style="font-size:0.7rem; font-weight:bold; color:#666;">SEARCH LOCATION</label>
-      <input type="text" id="addrInput" placeholder="Enter address..." style="width:100%; padding:8px; margin:5px 0; border:1px solid #ccc; border-radius:4px;">
+      <label style="font-size:0.65rem; font-weight:bold; color:#666;">ADDRESS SEARCH</label>
+      <input type="text" id="addrInput" placeholder="Street address..." style="width:100%; padding:8px; margin:5px 0; border:1px solid #ccc; border-radius:4px;">
       <button onclick="findAddress()">Locate</button>
     </div>
     <div class="card">
-      <label style="font-size:0.7rem; font-weight:bold; color:#666;">SELECT STATION</label>
-      <select id="devSel" onchange="handleSelect(this.value)" style="width:100%; padding:8px; margin-top:5px; border:1px solid #ccc; border-radius:4px;"></select>
+      <label style="font-size:0.65rem; font-weight:bold; color:#666;">SELECT STATION</label>
+      <select id="devSel" onchange="handleSelect(this.value)" style="width:100%; padding:8px; margin-top:5px;"></select>
     </div>
     <div class="card" style="text-align:center;">
       <div id="aqiDisplay" class="aqi-val" style="color:#ccc;">--</div>
-      <div id="aqiStatus" style="font-size:0.7rem; font-weight:bold; color:#555;">FETCHING DATA...</div>
+      <div style="font-size:0.65rem; font-weight:bold; color:#555;">CUMULATIVE CE-AQI</div>
       <div style="margin-top:10px; text-align:left;">
         <div class="legend-item"><span class="dot" style="background:#00e400"></span> Good (0-50)</div>
         <div class="legend-item"><span class="dot" style="background:#ffff00"></span> Moderate (51-100)</div>
@@ -68,6 +65,7 @@
 <script>
   const API_KEY = "9ADB5C6C-A9B0-11EF-A261-42010A80000F";
   const DC_REF = "175563";
+  // These proxies are configured to handle URL-based parameters better
   const PROXIES = ["https://api.allorigins.win/get?url=", "https://corsproxy.io/?"];
   let pIdx = 0;
 
@@ -79,18 +77,18 @@
 
   const chart = new Chart(document.getElementById('airChart').getContext('2d'), {
     type: 'line',
-    data: { datasets: [{ label: 'Local Station', data: [], borderColor: '#4477ce', tension: 0.2, fill: true, backgroundColor: 'rgba(68, 119, 206, 0.1)' }, { label: 'DC City Avg', data: [], borderColor: 'red', borderDash: [5,5], tension: 0.2, fill: false }]},
+    data: { datasets: [{ label: 'Selected Station', data: [], borderColor: '#4477ce', tension: 0.2, fill: true, backgroundColor: 'rgba(68, 119, 206, 0.1)' }, { label: 'DC City Avg', data: [], borderColor: 'red', borderDash: [5,5], tension: 0.2, fill: false }]},
     options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time' }, y: { beginAtZero: true } } }
   });
 
-  // HARDENED CALL: Specifically for large history data
-  async function call(url) {
-    const finalUrl = `${url}${url.includes('?') ? '&' : '?'}api_key=${API_KEY}`;
+  async function call(endpoint) {
+    // Append API key to URL to avoid Header-based CORS blocks
+    const finalUrl = `${endpoint}${endpoint.includes('?') ? '&' : '?'}api_key=${API_KEY}`;
     for (let i = 0; i < PROXIES.length; i++) {
       try {
-        const r = await fetch(`${PROXIES[pIdx]}${encodeURIComponent(finalUrl)}`);
-        const json = await r.json();
-        // Handle AllOrigins wrapper vs Direct Proxy
+        const response = await fetch(`${PROXIES[pIdx]}${encodeURIComponent(finalUrl)}`);
+        const json = await response.json();
+        // Unwrap AllOrigins data if necessary
         const data = json.contents ? JSON.parse(json.contents) : json;
         if (data) return data;
       } catch (e) { pIdx = (pIdx + 1) % PROXIES.length; }
@@ -100,41 +98,24 @@
 
   function toAQI(pm) {
     if (!pm || pm < 0) return 0;
-    if (pm <= 12) return Math.round(pm * 4.16);
-    if (pm <= 35.4) return Math.round(2.1 * (pm - 12) + 51);
-    return Math.round(pm + 100);
+    return pm <= 12 ? Math.round(pm * 4.16) : pm <= 35.4 ? Math.round(2.1*(pm-12)+51) : Math.round(pm + 100);
   }
 
   async function refresh(id) {
-    document.getElementById('aqiDisplay').classList.add('loading-pulse');
-    document.getElementById('aqiStatus').innerText = "DOWNLOADING...";
-    
     const start = Math.floor(Date.now()/1000) - 86400;
-    try {
-      const [loc, dc] = await Promise.all([
-        call(`https://api.purpleair.com/v1/sensors/${id}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`),
-        call(`https://api.purpleair.com/v1/sensors/${DC_REF}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`)
-      ]);
-
-      if (loc && loc.data && loc.data.length > 0) {
-        const parsed = loc.data.map(r => ({ x: r[0]*1000, y: toAQI(r[1]) }));
-        chart.data.datasets[0].data = parsed;
-        const val = parsed[0]?.y || 0; // History usually returns newest first
-        document.getElementById('aqiDisplay').innerText = val;
-        document.getElementById('aqiDisplay').style.color = val <= 50 ? "#00e400" : val <= 100 ? "#ffff00" : "#ff7e00";
-        document.getElementById('aqiStatus').innerText = "LIVE READING";
-      } else {
-        document.getElementById('aqiDisplay').innerText = "??";
-        document.getElementById('aqiStatus').innerText = "STATION OFFLINE";
-      }
-
-      if (dc && dc.data) chart.data.datasets[1].data = dc.data.map(r => ({ x: r[0]*1000, y: toAQI(r[1]) }));
-      chart.update();
-    } catch(e) { 
-        document.getElementById('aqiDisplay').innerText = "ERR"; 
-        document.getElementById('aqiStatus').innerText = "DATA BLOCK";
+    const [loc, dc] = await Promise.all([
+      call(`https://api.purpleair.com/v1/sensors/${id}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`),
+      call(`https://api.purpleair.com/v1/sensors/${DC_REF}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`)
+    ]);
+    if (loc && loc.data) {
+      const parsed = loc.data.map(r => ({ x: r[0]*1000, y: toAQI(r[1]) }));
+      chart.data.datasets[0].data = parsed;
+      const val = parsed[0]?.y || 0;
+      document.getElementById('aqiDisplay').innerText = val;
+      document.getElementById('aqiDisplay').style.color = val <= 50 ? "#00e400" : val <= 100 ? "#ffff00" : "#ff7e00";
     }
-    document.getElementById('aqiDisplay').classList.remove('loading-pulse');
+    if (dc && dc.data) chart.data.datasets[1].data = dc.data.map(r => ({ x: r[0]*1000, y: toAQI(r[1]) }));
+    chart.update();
   }
 
   async function init() {
