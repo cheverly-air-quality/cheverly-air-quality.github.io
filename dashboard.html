@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EJAT Cheverly Dashboard</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -10,54 +9,36 @@
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
   <style>
     body { margin: 0; display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; background: #f4f7f9; }
-    header { height: 60px; background: #1a2a40; color: white; display: flex; align-items: center; padding: 0 20px; font-weight: bold; justify-content: space-between; }
+    header { height: 60px; background: #1a2a40; color: white; display: flex; align-items: center; padding: 0 20px; font-weight: bold; }
     #layout { display: flex; flex: 1; overflow: hidden; }
-    #sidebar { width: 320px; background: white; border-right: 1px solid #ccc; padding: 20px; overflow-y: auto; z-index: 100; }
+    #sidebar { width: 320px; background: white; border-right: 1px solid #ccc; padding: 20px; overflow-y: auto; }
     #main-content { flex: 1; display: flex; flex-direction: column; }
-    #map { flex: 1; background: #e0e0e0; border-bottom: 2px solid #ccc; }
-    #chart-box { height: 280px; background: white; padding: 15px; }
+    #map { flex: 1; background: #e0e0e0; }
+    #chart-box { height: 280px; background: white; padding: 15px; border-top: 1px solid #ccc; }
     .card { background: #fff; border: 1px solid #eee; padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .aqi-val { font-size: 3.5rem; font-weight: bold; margin: 10px 0; }
-    .nav-links a { color: white; text-decoration: none; margin-left: 15px; font-size: 0.9rem; }
-    #status-msg { font-size: 0.75rem; color: #666; font-family: monospace; }
   </style>
 </head>
 <body>
 
-<header>
-  <div>Cheverly Air Quality Dashboard</div>
-  <nav class="nav-links">
-    <a href="index.html">Home</a>
-    <a href="dashboard.html" style="border-bottom: 2px solid white;">Dashboard</a>
-  </nav>
-</header>
+<header>Cheverly Air Quality Dashboard (EJAT Network)</header>
 
 <div id="layout">
   <aside id="sidebar">
     <div class="card">
-      <label style="font-weight:bold; font-size: 0.85rem;">Station Selection</label>
-      <select id="devSel" onchange="updateDisplay(this.value)" style="width:100%; padding:10px; margin-top:8px; border-radius:4px; border:1px solid #ccc;"></select>
+      <label style="font-weight:bold;">Station Selection</label>
+      <select id="devSel" onchange="updateDisplay(this.value)" style="width:100%; padding:10px; margin-top:8px;"></select>
     </div>
-
     <div class="card" style="text-align:center;">
-      <div id="statName" style="font-weight:bold; color:#333; font-size: 1rem;">Scanning Network...</div>
-      <div id="statAQI" class="aqi-val" style="color: #999;">--</div>
-      <div style="font-size: 0.7rem; font-weight: bold; color: #888; letter-spacing: 1px;">CUMULATIVE CE-AQI</div>
-      <div id="status-msg" style="margin-top:15px;">Initializing...</div>
-    </div>
-    
-    <div class="card">
-      <p style="font-size: 0.8rem; color: #666; line-height: 1.4;">
-        <strong>Note:</strong> Data is pulled from the EJAT PurpleAir network and calculated using the Cheverly Cumulative Exposure (CE-AQI) formula.
-      </p>
+      <div id="statName" style="font-weight:bold; color:#333;">Locating Stations...</div>
+      <div id="statAQI" class="aqi-val">--</div>
+      <div style="font-size: 0.7rem; font-weight: bold; color: #888;">CUMULATIVE CE-AQI</div>
+      <div id="status-msg" style="margin-top:10px; font-size: 0.7rem; color: #666;">Initializing...</div>
     </div>
   </aside>
-
   <div id="main-content">
     <div id="map"></div>
-    <div id="chart-box">
-      <canvas id="airChart"></canvas>
-    </div>
+    <div id="chart-box"><canvas id="airChart"></canvas></div>
   </div>
 </div>
 
@@ -71,27 +52,20 @@
     "57783": "EJAT.CV.6.57783", "57811": "EJAT.CV.4.57811", "57841": "EJAT.CV.3.57841",
     "57955": "EJAT.FH.1.57955", "160037": "EJAT.PG.1.160037", "175563": "EJAT.PG.1.175563",
     "178169": "EJAT.PG.1.178169", "181253": "EJAT.CH.1.181253", "184191": "EJAT.PG.1.184191",
-    "185085": "EJAT.FH.1.185085", "197937": "EJAT.PG.1.197937", "203577": "EJAT.CV.2.203577 (Supersite)",
+    "185085": "EJAT.FH.1.185085", "197937": "EJAT.PG.1.197937", "203577": "EJAT.CV.2.203577",
     "203597": "EJAT.FH.1.203597", "203601": "EJAT.CV.1.203601", "207729": "EJAT.CV.1.207729",
     "211993": "EJAT.CV.3.211993", "218227": "EJAT.PG.1.218227", "218237": "EJAT.PG.1.218237",
     "218273": "EJAT.PG.1.218273"
   };
 
   let markers = {};
-  const map = L.map('map').setView([38.925, -76.915], 14); // Centered on Cheverly
+  const map = L.map('map').setView([38.925, -76.915], 14);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
   const chart = new Chart(document.getElementById('airChart').getContext('2d'), {
     type: 'line',
-    data: { datasets: [{ label: 'AQI History (24h)', data: [], borderColor: '#1a2a40', tension: 0.2, fill: true, backgroundColor: 'rgba(26, 42, 64, 0.1)' }] },
-    options: { 
-      responsive: true, 
-      maintainAspectRatio: false, 
-      scales: { 
-        x: { type: 'time', time: { unit: 'hour' } },
-        y: { beginAtZero: true, title: { display: true, text: 'AQI' } }
-      } 
-    }
+    data: { datasets: [{ label: '24h History', data: [], borderColor: '#1a2a40', tension: 0.2, fill: true, backgroundColor: 'rgba(26, 42, 64, 0.1)' }] },
+    options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time' } } }
   });
 
   function getAQIColor(aqi) {
@@ -99,44 +73,40 @@
   }
 
   async function init() {
-    // Corrected Cheverly Bounding Box Coordinates
+    // Cheverly Bounding Box: NW: 38.96, -76.96 | SE: 38.89, -76.87
     const url = `${PROXY}https://api.purpleair.com/v1/sensors?nwlng=-76.96&nwlat=38.96&selng=-76.87&selat=38.89&fields=sensor_index,pm2.5_atm,latitude,longitude`;
     
     try {
-      document.getElementById('status-msg').innerText = "Connecting to API...";
       const resp = await fetch(url, { headers: { "X-API-Key": API_KEY, "X-Requested-With": "XMLHttpRequest" } });
       const res = await resp.json();
       
       const sel = document.getElementById('devSel');
       sel.innerHTML = '<option value="">Select a Station</option>';
 
-      let count = 0;
+      // FIX: Find the correct column index for Lat/Lng
+      const idx_id = res.fields.indexOf("sensor_index");
+      const idx_lat = res.fields.indexOf("latitude");
+      const idx_lng = res.fields.indexOf("longitude");
+      const idx_pm = res.fields.indexOf("pm2.5_atm");
+
       res.data.forEach(r => {
-        const id = String(r[0]);
-        if (SENSORS[id]) {
-          count++;
-          const m = L.circleMarker([r[2], r[3]], { 
-            radius: 12, 
-            fillColor: getAQIColor(r[1]), 
-            color: "#000", 
-            weight: 2, 
-            fillOpacity: 0.9 
+        const id = String(r[idx_id]);
+        const lat = r[idx_lat];
+        const lng = r[idx_lng];
+
+        if (SENSORS[id] && lat && lng) {
+          const m = L.circleMarker([lat, lng], { 
+            radius: 12, fillColor: getAQIColor(r[idx_pm]), color: "#000", weight: 2, fillOpacity: 0.9 
           }).addTo(map);
-          
           m.bindPopup(`<b>${SENSORS[id]}</b>`);
           markers[id] = m;
           sel.add(new Option(SENSORS[id], id));
-          
           m.on('click', () => { sel.value = id; updateDisplay(id); });
         }
       });
-      
-      document.getElementById('status-msg').innerText = `Active: ${count} Stations`;
-      if (markers["203577"]) updateDisplay("203577");
-    } catch (e) { 
-      document.getElementById('status-msg').innerText = "Auth Required (Check Console)";
-      console.error(e); 
-    }
+      document.getElementById('status-msg').innerText = "Network Connected";
+      updateDisplay("203577");
+    } catch (e) { console.error("Init Error:", e); }
   }
 
   async function updateDisplay(id) {
@@ -147,9 +117,7 @@
     try {
       const resp = await fetch(url, { headers: { "X-API-Key": API_KEY, "X-Requested-With": "XMLHttpRequest" } });
       const res = await resp.json();
-      
-      // FIX: Sort by timestamp to prevent shaky chart lines
-      const sorted = res.data.sort((a, b) => a[0] - b[0]);
+      const sorted = res.data.sort((a, b) => a[0] - b[0]); // STOP THE SHAKY CHART
       
       const latest = sorted[sorted.length - 1][1];
       document.getElementById('statAQI').innerText = Math.round(latest);
@@ -158,13 +126,12 @@
 
       chart.data.datasets[0].data = sorted.map(r => ({ x: r[0]*1000, y: r[1] }));
       chart.update();
-      
       if(markers[id]) { map.flyTo(markers[id].getLatLng(), 15); markers[id].openPopup(); }
     } catch (e) { console.error("Update Error:", e); }
   }
 
   init();
-  setTimeout(() => map.invalidateSize(), 1000); // Forces map to fill container on load
+  setTimeout(() => map.invalidateSize(), 1000);
 </script>
 </body>
 </html>
