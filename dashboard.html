@@ -22,7 +22,6 @@
         .aqi-num { font-size: 48px; font-weight: 800; margin: 5px 0; }
         select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
         
-        /* Tooltip styling for Map Hover */
         .leaflet-tooltip-own {
             background: #1a305e; color: white; border: 1px solid white;
             border-radius: 6px; padding: 8px; font-size: 12px; line-height: 1.4;
@@ -53,7 +52,7 @@
 
         <div style="font-size: 0.75rem; background: white; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
             <b>Hover Map Sensors:</b><br>
-            Displays EJAT Name, Index ID,<br>and raw PM2.5 cumulative data.
+            Displays EJAT Name, Index ID,<br>and raw PM2.5 data.
         </div>
     </aside>
 
@@ -81,17 +80,23 @@
         options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time' }, y: { beginAtZero: true } } }
     });
 
-    // New SafeFetch using corsproxy.io for GitHub Pages stability
+    // Strategy: Try two different proxies if one returns 403 Forbidden
     async function safeFetch(url) {
         const fullUrl = url + (url.includes('?') ? '&' : '?') + 'api_key=' + KEY;
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(fullUrl)}`;
-        try {
-            const r = await fetch(proxyUrl);
-            return await r.json();
-        } catch (e) {
-            console.error("Fetch failed:", e);
-            return null;
+        const proxies = [
+            `https://corsproxy.io/?${encodeURIComponent(fullUrl)}`,
+            `https://api.allorigins.win/get?url=${encodeURIComponent(fullUrl)}`
+        ];
+
+        for (let p of proxies) {
+            try {
+                const r = await fetch(p);
+                if (!r.ok) continue; // Try next proxy if 403 or 429 occurs
+                const j = await r.json();
+                return j.contents ? JSON.parse(j.contents) : j;
+            } catch (e) { console.warn("Proxy attempt failed:", p); }
         }
+        return null;
     }
 
     function calcAQI(pm) {
@@ -122,7 +127,7 @@
             display.style.color = latest <= 50 ? "#00e400" : latest <= 100 ? "#e5e500" : "#ff7e00";
             document.getElementById('statusLabel').innerText = "LIVE DATA ACTIVE";
         } else {
-            document.getElementById('statusLabel').innerText = "OFFLINE/NO DATA";
+            document.getElementById('statusLabel').innerText = "DATA UNAVAILABLE";
         }
         chart.update();
         if (markers[id]) map.flyTo(markers[id].getLatLng(), 15);
