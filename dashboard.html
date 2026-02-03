@@ -21,12 +21,7 @@
         .stat-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; border-top: 4px solid var(--blue); }
         .aqi-num { font-size: 48px; font-weight: 800; margin: 5px 0; }
         select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
-        
-        .leaflet-tooltip-own {
-            background: #1a305e; color: white; border: 1px solid white;
-            border-radius: 6px; padding: 8px; font-size: 12px; line-height: 1.4;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.4);
-        }
+        .leaflet-tooltip-own { background: #1a305e; color: white; border: 1px solid white; border-radius: 6px; padding: 8px; font-size: 12px; line-height: 1.4; box-shadow: 0 3px 10px rgba(0,0,0,0.4); }
         .tt-pm { color: #00ff00; font-weight: 900; font-size: 14px; }
     </style>
 </head>
@@ -34,7 +29,7 @@
 
 <div class="header">
     <span>Cheverly EJAT Network</span>
-    <span style="font-size:0.7rem; opacity:0.8;">Live GitHub Portal</span>
+    <span id="versionTag" style="font-size:0.7rem; opacity:0.8;">Verifying Connection...</span>
 </div>
 
 <div id="container">
@@ -42,20 +37,16 @@
         <div class="stat-card">
             <div id="stationLabel" style="font-size: 0.7rem; color: #666; font-weight: bold;">STATION DATA</div>
             <div id="aqiVal" class="aqi-num" style="color: #bbb;">--</div>
-            <div id="statusLabel" style="font-size: 0.7rem; font-weight: bold;">CONNECTING...</div>
+            <div id="statusLabel" style="font-size: 0.7rem; font-weight: bold;">INITIALIZING...</div>
         </div>
-
         <div>
             <label style="font-size: 0.7rem; font-weight: bold;">STATION REGISTRY</label>
             <select id="stationSelect" onchange="updateStation(this.value)"></select>
         </div>
-
         <div style="font-size: 0.75rem; background: white; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-            <b>Hover Map Sensors:</b><br>
-            Displays EJAT Name, Index ID,<br>and raw PM2.5 data.
+            <b>Live Data:</b> Updates every 10 min.<br><b>DC Baseline:</b> Red dotted line.
         </div>
     </aside>
-
     <main id="content">
         <div id="map"></div>
         <div id="chart-container"><canvas id="aqiChart"></canvas></div>
@@ -80,21 +71,27 @@
         options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time' }, y: { beginAtZero: true } } }
     });
 
-    // Strategy: Try two different proxies if one returns 403 Forbidden
     async function safeFetch(url) {
         const fullUrl = url + (url.includes('?') ? '&' : '?') + 'api_key=' + KEY;
-        const proxies = [
-            `https://corsproxy.io/?${encodeURIComponent(fullUrl)}`,
-            `https://api.allorigins.win/get?url=${encodeURIComponent(fullUrl)}`
+        
+        // Strategy: 1. Direct 2. AllOrigins 3. CorsProxy 4. Cloudflare Worker (Custom)
+        const sources = [
+            fullUrl, // Try direct first (works on some modern browsers)
+            `https://api.allorigins.win/get?url=${encodeURIComponent(fullUrl)}`,
+            `https://corsproxy.io/?${encodeURIComponent(fullUrl)}`
         ];
 
-        for (let p of proxies) {
+        for (let src of sources) {
             try {
-                const r = await fetch(p);
-                if (!r.ok) continue; // Try next proxy if 403 or 429 occurs
+                const r = await fetch(src);
+                if (!r.ok) continue;
                 const j = await r.json();
-                return j.contents ? JSON.parse(j.contents) : j;
-            } catch (e) { console.warn("Proxy attempt failed:", p); }
+                const cleanData = j.contents ? JSON.parse(j.contents) : j;
+                if (cleanData) {
+                    document.getElementById('versionTag').innerText = "Network: Online";
+                    return cleanData;
+                }
+            } catch (e) { console.warn("Trying next source..."); }
         }
         return null;
     }
@@ -105,9 +102,7 @@
     }
 
     async function updateStation(id) {
-        document.getElementById('statusLabel').innerText = "FETCHING...";
-        document.getElementById('stationLabel').innerText = STATIONS[id] || "ID: " + id;
-        
+        document.getElementById('statusLabel').innerText = "FETCHING DATA...";
         const start = Math.floor(Date.now() / 1000) - 86400;
         const [loc, dc] = await Promise.all([
             safeFetch(`https://api.purpleair.com/v1/sensors/${id}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`),
@@ -116,7 +111,6 @@
 
         const process = (d) => (d?.data || []).map(r => ({ x: r[0]*1000, y: calcAQI(r[1]) })).sort((a,b) => a.x - b.x);
         const locPoints = process(loc);
-        
         chart.data.datasets[0].data = locPoints;
         chart.data.datasets[1].data = process(dc);
         
@@ -125,9 +119,10 @@
             const display = document.getElementById('aqiVal');
             display.innerText = latest;
             display.style.color = latest <= 50 ? "#00e400" : latest <= 100 ? "#e5e500" : "#ff7e00";
-            document.getElementById('statusLabel').innerText = "LIVE DATA ACTIVE";
+            document.getElementById('statusLabel').innerText = "STATION: " + (STATIONS[id] || id);
         } else {
-            document.getElementById('statusLabel').innerText = "DATA UNAVAILABLE";
+            document.getElementById('statusLabel').innerText = "STATION OFFLINE";
+            document.getElementById('aqiVal').innerText = "??";
         }
         chart.update();
         if (markers[id]) map.flyTo(markers[id].getLatLng(), 15);
@@ -142,21 +137,9 @@
                 const id = String(r[0]);
                 const rawPM = r[3] || 0;
                 const curAQI = calcAQI(rawPM);
-
                 if (STATIONS[id]) {
-                    const m = L.circleMarker([r[1], r[2]], { 
-                        radius: 10, fillColor: curAQI <= 50 ? "#00e400" : "#ffff00", 
-                        color: "#000", weight: 1.5, fillOpacity: 0.9 
-                    }).addTo(map);
-                    
-                    m.bindTooltip(`
-                        <div style="text-align:center;">
-                            <b style="font-size:13px;">${STATIONS[id]}</b><br>
-                            <span style="opacity:0.8;">ID: ${id}</span><hr style="margin:4px 0; border:0; border-top:1px solid #555;">
-                            <span style="font-size:11px;">AQI:</span> <b class="tt-pm" style="color:${curAQI <= 50 ? '#00ff00' : '#ffff00'}">${curAQI}</b><br>
-                            <span style="font-size:11px;">PM2.5:</span> <b class="tt-pm">${rawPM.toFixed(1)} µg/m³</b>
-                        </div>`, { direction: 'top', className: 'leaflet-tooltip-own', offset: [0, -10] });
-
+                    const m = L.circleMarker([r[1], r[2]], { radius: 10, fillColor: curAQI <= 50 ? "#00e400" : "#ffff00", color: "#000", weight: 1.5, fillOpacity: 0.9 }).addTo(map);
+                    m.bindTooltip(`<b>${STATIONS[id]}</b><br>AQI: ${curAQI}<br>PM2.5: ${rawPM.toFixed(1)}`, { className: 'leaflet-tooltip-own' });
                     markers[id] = m;
                     sel.add(new Option(STATIONS[id], id));
                     m.on('click', () => { sel.value = id; updateStation(id); });
@@ -164,10 +147,9 @@
             });
             updateStation("203577");
         } else {
-            document.getElementById('statusLabel').innerText = "CONNECTION BLOCKED";
+            document.getElementById('statusLabel').innerText = "CONNECTION FAILED";
         }
     }
-
     init();
 </script>
 </body>
