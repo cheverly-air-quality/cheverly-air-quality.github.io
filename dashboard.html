@@ -14,13 +14,19 @@
         body { margin: 0; font-family: system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: #fff; }
         .header { background: var(--navy); color: white; padding: 10px 20px; font-weight: bold; font-size: 1.1rem; display: flex; justify-content: space-between; }
         #container { display: flex; flex: 1; min-height: 0; }
-        #sidebar { width: 300px; background: #f4f4f4; border-right: 1px solid #ccc; padding: 15px; display: flex; flex-direction: column; gap: 15px; }
+        #sidebar { width: 300px; background: #f4f4f4; border-right: 1px solid #ccc; padding: 15px; display: flex; flex-direction: column; gap: 15px; position: relative; }
         #content { flex: 1; display: flex; flex-direction: column; }
         #map { height: 45%; border-bottom: 1px solid #ccc; }
         #chart-container { flex: 1; padding: 15px; background: white; }
         .stat-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; border-top: 4px solid var(--blue); }
         .aqi-num { font-size: 48px; font-weight: 800; margin: 5px 0; }
         select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        
+        /* Legend / Color Key Styling */
+        .legend { background: white; padding: 10px; border-radius: 5px; border: 1px solid #ddd; font-size: 0.75rem; line-height: 1.5; }
+        .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+        .dot { height: 12px; width: 12px; border-radius: 50%; border: 1px solid #999; display: inline-block; }
+
         .leaflet-tooltip-own { background: #1a305e; color: white; border: 1px solid white; border-radius: 6px; padding: 8px; font-size: 12px; line-height: 1.4; box-shadow: 0 3px 10px rgba(0,0,0,0.4); }
         .tt-pm { color: #00ff00; font-weight: 900; font-size: 14px; }
     </style>
@@ -39,14 +45,26 @@
             <div id="aqiVal" class="aqi-num" style="color: #bbb;">--</div>
             <div id="statusLabel" style="font-size: 0.7rem; font-weight: bold;">INITIALIZING...</div>
         </div>
+
         <div>
             <label style="font-size: 0.7rem; font-weight: bold;">STATION REGISTRY</label>
             <select id="stationSelect" onchange="updateStation(this.value)"></select>
         </div>
-        <div style="font-size: 0.75rem; background: white; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-            <b>Live Data:</b> Updates every 10 min.<br><b>DC Baseline:</b> Red dotted line.
+
+        <div class="legend">
+            <div style="font-weight:bold; margin-bottom:5px; border-bottom:1px solid #eee;">AQI HEALTH LEVELS</div>
+            <div class="legend-item"><span class="dot" style="background:#00e400;"></span> Good (0-50)</div>
+            <div class="legend-item"><span class="dot" style="background:#ffff00;"></span> Moderate (51-100)</div>
+            <div class="legend-item"><span class="dot" style="background:#ff7e00;"></span> Sensitive (101-150)</div>
+            <div class="legend-item"><span class="dot" style="background:#ff0000;"></span> Unhealthy (151+)</div>
+        </div>
+
+        <div style="font-size: 0.7rem; color: #777; margin-top: auto;">
+            * Red dotted line: DC Baseline Avg.<br>
+            * Updates automatically every 10 min.
         </div>
     </aside>
+
     <main id="content">
         <div id="map"></div>
         <div id="chart-container"><canvas id="aqiChart"></canvas></div>
@@ -71,12 +89,11 @@
         options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time' }, y: { beginAtZero: true } } }
     });
 
+    // Multi-Proxy logic to bypass GitHub's 403 blocks
     async function safeFetch(url) {
         const fullUrl = url + (url.includes('?') ? '&' : '?') + 'api_key=' + KEY;
-        
-        // Strategy: 1. Direct 2. AllOrigins 3. CorsProxy 4. Cloudflare Worker (Custom)
         const sources = [
-            fullUrl, // Try direct first (works on some modern browsers)
+            fullUrl, // Try direct first
             `https://api.allorigins.win/get?url=${encodeURIComponent(fullUrl)}`,
             `https://corsproxy.io/?${encodeURIComponent(fullUrl)}`
         ];
@@ -88,7 +105,7 @@
                 const j = await r.json();
                 const cleanData = j.contents ? JSON.parse(j.contents) : j;
                 if (cleanData) {
-                    document.getElementById('versionTag').innerText = "Network: Online";
+                    document.getElementById('versionTag').innerText = "Live GitHub Portal";
                     return cleanData;
                 }
             } catch (e) { console.warn("Trying next source..."); }
@@ -102,7 +119,7 @@
     }
 
     async function updateStation(id) {
-        document.getElementById('statusLabel').innerText = "FETCHING DATA...";
+        document.getElementById('statusLabel').innerText = "FETCHING...";
         const start = Math.floor(Date.now() / 1000) - 86400;
         const [loc, dc] = await Promise.all([
             safeFetch(`https://api.purpleair.com/v1/sensors/${id}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`),
@@ -122,7 +139,7 @@
             document.getElementById('statusLabel').innerText = "STATION: " + (STATIONS[id] || id);
         } else {
             document.getElementById('statusLabel').innerText = "STATION OFFLINE";
-            document.getElementById('aqiVal').innerText = "??";
+            document.getElementById('aqiVal').innerText = "--";
         }
         chart.update();
         if (markers[id]) map.flyTo(markers[id].getLatLng(), 15);
@@ -147,10 +164,11 @@
             });
             updateStation("203577");
         } else {
-            document.getElementById('statusLabel').innerText = "CONNECTION FAILED";
+            document.getElementById('statusLabel').innerText = "CONNECTION BLOCKED";
         }
     }
     init();
+    setInterval(() => updateStation(document.getElementById('stationSelect').value), 600000); // Auto-refresh 10min
 </script>
 </body>
 </html>
