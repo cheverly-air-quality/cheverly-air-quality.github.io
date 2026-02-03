@@ -20,14 +20,10 @@
     label { font-size: 0.7rem; font-weight: bold; color: #666; text-transform: uppercase; display: block; }
     input, select { width: 100%; padding: 10px; margin-top: 5px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
     button { width: 100%; padding: 12px; margin-top: 8px; border-radius: 4px; border: none; background: var(--search-blue); color: white; font-weight: bold; cursor: pointer; }
-    
     #main-content { flex: 1; display: flex; flex-direction: column; position: relative; }
     #map { height: 45%; width: 100%; border-bottom: 1px solid #ddd; }
     #chart-box { height: 55%; width: 100%; padding: 15px; box-sizing: border-box; background: white; }
-    
     .aqi-val { font-size: 72px; font-weight: 900; display: block; text-align: center; line-height: 1.1; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
-    
-    /* MAP LEGEND */
     .map-legend { background: white; padding: 8px; border-radius: 4px; border: 2px solid #ccc; font-size: 11px; line-height: 1.4; box-shadow: 0 0 8px rgba(0,0,0,0.2); }
     .legend-item { display: flex; align-items: center; margin-bottom: 2px; font-weight: bold; }
     .dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; border: 1px solid #000; }
@@ -48,11 +44,7 @@
       <div style="font-size:0.75rem; color:#666; font-weight: bold;">CE-AQI READING</div>
     </div>
   </aside>
-  
-  <div id="main-content">
-    <div id="map"></div>
-    <div id="chart-box"><canvas id="airChart"></canvas></div>
-  </div>
+  <div id="main-content"><div id="map"></div><div id="chart-box"><canvas id="airChart"></canvas></div></div>
 </div>
 
 <script>
@@ -81,7 +73,6 @@
   const map = L.map('map').setView([38.922, -76.915], 14);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-  // ADD LEGEND
   const legend = L.control({position: 'bottomleft'});
   legend.onAdd = function() {
     const div = L.DomUtil.create('div', 'map-legend');
@@ -117,68 +108,53 @@
 
   async function updateDisplay(id) {
     const start = Math.floor(Date.now()/1000)-86400;
-    
-    // KEY MOVED TO URL PARAMETER
-    const localUrl = `${PROXY}${encodeURIComponent(`https://api.purpleair.com/v1/sensors/${id}/history?api_key=${PURPLE_AIR_KEY}&fields=pm2.5_atm&average=60&start_timestamp=${start}`)}`;
-    const dcUrl = `${PROXY}${encodeURIComponent(`https://api.purpleair.com/v1/sensors/${DC_REF_ID}/history?api_key=${PURPLE_AIR_KEY}&fields=pm2.5_atm&average=60&start_timestamp=${start}`)}`;
+    const lUrl = PROXY + encodeURIComponent("https://api.purpleair.com/v1/sensors/" + id + "/history?api_key=" + PURPLE_AIR_KEY + "&fields=pm2.5_atm&average=60&start_timestamp=" + start);
+    const dUrl = PROXY + encodeURIComponent("https://api.purpleair.com/v1/sensors/" + DC_REF_ID + "/history?api_key=" + PURPLE_AIR_KEY + "&fields=pm2.5_atm&average=60&start_timestamp=" + start);
 
     try {
-      const [lRes, dRes] = await Promise.all([
-        fetch(localUrl).then(r=>r.json()),
-        fetch(dcUrl).then(r=>r.json())
-      ]);
+      const [lRes, dRes] = await Promise.all([fetch(lUrl).then(r=>r.json()), fetch(dUrl).then(r=>r.json())]);
       const lData = (lRes.data || []).sort((a,b)=>a[0]-b[0]).map(r => ({ x: r[0]*1000, y: calculateCEAQI(r[1], id) }));
       const dData = (dRes.data || []).sort((a,b)=>a[0]-b[0]).map(r => ({ x: r[0]*1000, y: calculateCEAQI(r[1], DC_REF_ID) }));
-      chart.data.datasets[0].data = lData; 
-      chart.data.datasets[1].data = dData; 
-      chart.update();
+      chart.data.datasets[0].data = lData; chart.data.datasets[1].data = dData; chart.update();
       const aqi = lData.length > 0 ? lData[lData.length-1].y : 0;
       document.getElementById('statName').innerText = SENSORS[id] || id;
       document.getElementById('statAQI').innerText = aqi;
       document.getElementById('statAQI').style.color = getAQIColor(aqi);
-    } catch(e) { console.error("History fetch failed", e); }
+    } catch(e) { console.error("History fail", e); }
   }
 
   function handleDropdownChange(id) { if(markerMap[id]) { map.flyTo(markerMap[id].getLatLng(), 15); updateDisplay(id); } }
 
   async function init() {
     const sel = document.getElementById('devSel');
-    
-    // ADD SPODS
     SPODS.forEach(s => {
       const m = L.marker([s.lat, s.lon], {icon: L.divIcon({ className: 'spod', html: `<div class="tri"></div>`, iconAnchor: [8, 12] })}).addTo(map);
       markerMap[s.sn] = m; sel.add(new Option(s.name, s.sn));
       m.on('click', () => { sel.value = s.sn; handleDropdownChange(s.sn); });
     });
 
-    // PULL ALL SENSORS WITH KEY IN URL
     const idList = Object.keys(SENSORS).join(',');
-    const url = `${PROXY}${encodeURIComponent(`https://api.purpleair.com/v1/sensors?api_key=${PURPLE_AIR_KEY}&show_only=${idList}&fields=latitude,longitude,pm2.5_atm`)}`;
+    const url = PROXY + encodeURIComponent("https://api.purpleair.com/v1/sensors?api_key=" + PURPLE_AIR_KEY + "&show_only=" + idList + "&fields=latitude,longitude,pm2.5_atm");
     
     try {
       const res = await fetch(url).then(r=>r.json());
       if (res.data) {
         res.data.forEach(r => {
           const id = String(r[0]);
-          const aqi = calculateCEAQI(r[3], id);
-          const m = L.circleMarker([r[1], r[2]], { radius: 10, fillColor: getAQIColor(aqi), color: "#000", weight: 2, fillOpacity: 0.9 }).addTo(map);
-          markerMap[id] = m;
-          sel.add(new Option(SENSORS[id], id));
+          const m = L.circleMarker([r[1], r[2]], { radius: 10, fillColor: getAQIColor(calculateCEAQI(r[3], id)), color: "#000", weight: 2, fillOpacity: 0.9 }).addTo(map);
+          markerMap[id] = m; sel.add(new Option(SENSORS[id], id));
           m.on('click', () => { sel.value = id; handleDropdownChange(id); });
         });
       }
-    } catch(e) { console.error("Map initial load failed", e); }
-    
+    } catch(e) { console.error("Load fail", e); }
     updateDisplay("203577"); 
   }
 
   async function findAddress() {
     const addr = document.getElementById('addrInput').value;
     if (!addr) return;
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr + ", Cheverly, MD")}`;
     try {
-      const resp = await fetch(url);
-      const data = await resp.json();
+      const data = await fetch("https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(addr + ", Cheverly, MD")).then(r=>r.json());
       if (data.length > 0) {
         const uLat = parseFloat(data[0].lat), uLon = parseFloat(data[0].lon);
         map.setView([uLat, uLon], 16);
@@ -191,7 +167,6 @@
       }
     } catch(e) { console.error(e); }
   }
-
   init();
 </script>
 </body>
