@@ -25,23 +25,23 @@
     #map { height: 45%; width: 100%; border-bottom: 1px solid #ddd; z-index: 1; }
     #chart-box { height: 55%; width: 100%; padding: 15px; box-sizing: border-box; background: white; }
     
-    /* BLACK OUTLINE FOR AQI NUMBER */
+    /* ADDED: THE BLACK OUTLINE STYLE */
     .aqi-val { 
       font-size: 72px; 
       font-weight: 900; 
       display: block; 
       text-align: center; 
       line-height: 1.1; 
-      -webkit-text-stroke: 2px black;
-      paint-order: stroke fill;
-      color: #ccc; 
+      text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000; /* Bold black outline */
     }
     
-    .sidebar-legend { margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; text-align: left; }
-    .legend-item { display: flex; align-items: center; margin-bottom: 6px; font-size: 0.85rem; font-weight: 600; color: #444; }
-    .dot { width: 14px; height: 14px; border-radius: 50%; margin-right: 10px; border: 1px solid #000; }
-    .tri { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 12px solid var(--orange); margin-right: 10px; }
     .health-msg { margin-top: 10px; font-size: 0.8rem; padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 4px; }
+    
+    /* ADDED: SIDEBAR LEGEND STYLES */
+    .sidebar-legend { margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; text-align: left; }
+    .legend-item { display: flex; align-items: center; margin-bottom: 5px; font-weight: bold; font-size: 11px; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid #000; display: inline-block; }
+    .tri { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 12px solid var(--orange); margin-right: 8px; }
   </style>
 </head>
 <body>
@@ -55,21 +55,21 @@
   <aside id="sidebar">
     <div class="card"><label>Location Search</label><input type="text" id="addrInput" placeholder="Enter address..."><button onclick="findAddress()">Find Nearest Station</button></div>
     <div class="card"><label>Station Index</label><select id="devSel" onchange="handleDropdownChange(this.value)"></select></div>
-    <div class="card">
+    <div class="card" style="min-height: 150px;">
       <label>Live Station Reading</label>
       <div id="details" style="text-align:center;">
         <div id="statName" style="font-weight:bold; font-size:0.9rem; margin-bottom:5px;">--</div>
-        <div id="statAQI" class="aqi-val">--</div>
+        <div id="statAQI" class="aqi-val" style="color:#ccc;">--</div>
         <div style="font-size:0.75rem; color:#666; font-weight: bold;">CUMULATIVE CE-AQI</div>
-        
+
         <div class="sidebar-legend">
-          <label style="margin-bottom: 8px; display:block;">AQI Scale Key</label>
           <div class="legend-item"><span class="dot" style="background:#00e400"></span> Good (0-50)</div>
           <div class="legend-item"><span class="dot" style="background:#ffff00"></span> Moderate (51-100)</div>
           <div class="legend-item"><span class="dot" style="background:#ff7e00"></span> Sensitive (101-150)</div>
           <div class="legend-item"><span class="dot" style="background:#ff0000"></span> Unhealthy (151+)</div>
           <div class="legend-item"><span class="tri"></span> SPOD Gas Sensor</div>
         </div>
+
         <div id="healthAdvice" class="health-msg" style="display:none;"></div>
       </div>
     </div>
@@ -78,9 +78,10 @@
 </div>
 
 <script>
+  // EXACT DATA LOGIC FROM YOUR WORKING VERSION
   const PURPLE_AIR_KEY = "9ADB5C6C-A9B0-11EF-A261-42010A80000F";
+  const PROXY = "https://corsproxy.io/?"; 
   const DC_REF_ID = "175563"; 
-  const PROXY_BASE = "https://api.allorigins.win/get?url=";
 
   const SENSORS = {
     "284362": "EJAT.PG.1.284362", "52823": "EJAT.CV.6.52823", "53677": "EJAT.CV.1.53677",
@@ -112,21 +113,6 @@
     options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time' }, y: { beginAtZero: true } } }
   });
 
-  function jsonp(url) {
-    return new Promise((resolve, reject) => {
-      const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
-      window[callbackName] = (data) => {
-        delete window[callbackName];
-        document.body.removeChild(script);
-        resolve(data);
-      };
-      const script = document.createElement('script');
-      script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + callbackName;
-      script.onerror = reject;
-      document.body.appendChild(script);
-    });
-  }
-
   function calculateCEAQI(pm, id) {
     if (!pm || pm < 0) return 0;
     let base = pm <= 12 ? Math.round(pm * 4.16) : pm <= 35.4 ? Math.round(2.1*(pm-12)+51) : pm <= 55.4 ? Math.round(2.45*(pm-35.4)+101) : Math.round(pm+100);
@@ -138,68 +124,13 @@
     if (aqi <= 50) return "#00e400"; if (aqi <= 100) return "#ffff00"; if (aqi <= 150) return "#ff7e00"; return "#ff0000";
   }
 
-  async function updateDisplay(id) {
-    if (id.startsWith("MOD")) {
-      document.getElementById('statName').innerText = id; document.getElementById('statAQI').innerText = "LIVE";
-      document.getElementById('statAQI').style.color = "var(--orange)"; return;
-    }
-    const start = Math.floor(Date.now()/1000)-86400;
-    const lUrl = PROXY_BASE + encodeURIComponent(`https://api.purpleair.com/v1/sensors/${id}/history?api_key=${PURPLE_AIR_KEY}&fields=pm2.5_atm&average=60&start_timestamp=${start}`);
-    const dUrl = PROXY_BASE + encodeURIComponent(`https://api.purpleair.com/v1/sensors/${DC_REF_ID}/history?api_key=${PURPLE_AIR_KEY}&fields=pm2.5_atm&average=60&start_timestamp=${start}`);
-
-    try {
-      const [lResRaw, dResRaw] = await Promise.all([jsonp(lUrl), jsonp(dUrl)]);
-      const lRes = JSON.parse(lResRaw.contents);
-      const dRes = JSON.parse(dResRaw.contents);
-      
-      if (lRes.data && dRes.data) {
-        const localData = lRes.data.sort((a,b)=>a[0]-b[0]).map(r => ({ x: r[0]*1000, y: calculateCEAQI(r[1], id) }));
-        const dcData = dRes.data.sort((a,b)=>a[0]-b[0]).map(r => ({ x: r[0]*1000, y: calculateCEAQI(r[1], DC_REF_ID) }));
-        chart.data.datasets[0].data = localData; chart.data.datasets[1].data = dcData; chart.update();
-        const aqi = localData.length > 0 ? localData[localData.length-1].y : 0;
-        document.getElementById('statName').innerText = SENSORS[id] || id;
-        document.getElementById('statAQI').innerText = aqi;
-        document.getElementById('statAQI').style.color = getAQIColor(aqi);
-        const adv = document.getElementById('healthAdvice'); adv.style.display = "block";
-        adv.innerHTML = aqi > 150 ? "<b>ALERT:</b> Unhealthy." : aqi > 100 ? "<b>CAUTION:</b> Sensitive Groups." : "Satisfactory.";
-      }
-    } catch(e) { console.error("Update failed", e); }
-  }
-
-  async function init() {
-    const sel = document.getElementById('devSel');
-    SPODS.forEach(s => {
-      const m = L.marker([s.lat, s.lon], {icon: L.divIcon({ className: 'spod', html: `<div class="tri"></div>`, iconAnchor: [8, 12] })}).addTo(map);
-      markerMap[s.sn] = m; sel.add(new Option(s.name, s.sn));
-      m.on('click', () => { sel.value = s.sn; handleDropdownChange(s.sn); });
-    });
-
-    const idList = Object.keys(SENSORS).join(',');
-    const url = PROXY_BASE + encodeURIComponent(`https://api.purpleair.com/v1/sensors?api_key=${PURPLE_AIR_KEY}&show_only=${idList}&fields=latitude,longitude,pm2.5_atm`);
-    
-    try {
-      const resRaw = await jsonp(url);
-      const res = JSON.parse(resRaw.contents);
-      if (res.data) {
-        res.data.forEach(r => {
-          const id = String(r[0]);
-          const aqi = calculateCEAQI(r[3], id);
-          const m = L.circleMarker([r[1], r[2]], { radius: 10, fillColor: getAQIColor(aqi), color: "#000", weight: 2, fillOpacity: 0.9 }).addTo(map);
-          markerMap[id] = m; sel.add(new Option(SENSORS[id], id));
-          m.on('click', () => { sel.value = id; handleDropdownChange(id); });
-        });
-      }
-    } catch(e) { console.error("Load fail", e); }
-    updateDisplay("203577");
-  }
-
-  function handleDropdownChange(id) { if(markerMap[id]) { map.flyTo(markerMap[id].getLatLng(), 15); updateDisplay(id); } }
-
   async function findAddress() {
     const addr = document.getElementById('addrInput').value;
     if (!addr) return;
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr + ", Cheverly, MD")}`;
     try {
-      const data = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr + ", Cheverly, MD")}`).then(r=>r.json());
+      const resp = await fetch(url);
+      const data = await resp.json();
       if (data.length > 0) {
         const uLat = parseFloat(data[0].lat), uLon = parseFloat(data[0].lon);
         map.setView([uLat, uLon], 16);
@@ -211,6 +142,58 @@
         if (nearestId) { document.getElementById('devSel').value = nearestId; handleDropdownChange(nearestId); }
       }
     } catch(e) { console.error(e); }
+  }
+
+  async function updateDisplay(id) {
+    if (id.startsWith("MOD")) {
+      document.getElementById('statName').innerText = id; document.getElementById('statAQI').innerText = "LIVE";
+      document.getElementById('statAQI').style.color = "var(--orange)"; return;
+    }
+    const start = Math.floor(Date.now()/1000)-86400;
+    const localUrl = `${PROXY}${encodeURIComponent(`https://api.purpleair.com/v1/sensors/${id}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`)}`;
+    const dcUrl = `${PROXY}${encodeURIComponent(`https://api.purpleair.com/v1/sensors/${DC_REF_ID}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`)}`;
+
+    try {
+      const [localRes, dcRes] = await Promise.all([
+        fetch(localUrl, { headers: { "X-API-Key": PURPLE_AIR_KEY } }).then(r=>r.json()),
+        fetch(dcUrl, { headers: { "X-API-Key": PURPLE_AIR_KEY } }).then(r=>r.json())
+      ]);
+      const localData = (localRes.data || []).sort((a,b)=>a[0]-b[0]).map(r => ({ x: r[0]*1000, y: calculateCEAQI(r[1], id) }));
+      const dcData = (dcRes.data || []).sort((a,b)=>a[0]-b[0]).map(r => ({ x: r[0]*1000, y: calculateCEAQI(r[1], DC_REF_ID) }));
+      chart.data.datasets[0].data = localData; chart.data.datasets[1].data = dcData; chart.update();
+      const aqi = localData.length > 0 ? localData[localData.length-1].y : 0;
+      document.getElementById('statName').innerText = SENSORS[id];
+      document.getElementById('statAQI').innerText = aqi;
+      document.getElementById('statAQI').style.color = getAQIColor(aqi);
+      const adv = document.getElementById('healthAdvice'); adv.style.display = "block";
+      adv.innerHTML = aqi > 150 ? "<b>ALERT:</b> Unhealthy." : aqi > 100 ? "<b>CAUTION:</b> Sensitive Groups." : "Satisfactory.";
+    } catch(e) { console.log(e); }
+  }
+
+  function handleDropdownChange(id) { if(markerMap[id]) { map.flyTo(markerMap[id].getLatLng(), 15); updateDisplay(id); } }
+
+  async function init() {
+    const sel = document.getElementById('devSel');
+    SPODS.forEach(s => {
+      const m = L.marker([s.lat, s.lon], {icon: L.divIcon({ className: 'spod', html: `<div class="tri"></div>`, iconAnchor: [8, 12] })}).addTo(map);
+      markerMap[s.sn] = m; sel.add(new Option(s.name, s.sn));
+      m.on('click', () => { sel.value = s.sn; handleDropdownChange(s.sn); });
+    });
+
+    const url = `${PROXY}${encodeURIComponent("https://api.purpleair.com/v1/sensors?nwlng=-77.15&nwlat=39.05&selng=-76.75&selat=38.75&fields=sensor_index,latitude,longitude,pm2.5_atm")}`;
+    try {
+      const res = await fetch(url, { headers: { "X-API-Key": PURPLE_AIR_KEY } }).then(r=>r.json());
+      res.data.forEach(r => {
+        const id = String(r[0]);
+        if (SENSORS[id] && !markerMap[id]) {
+          const aqi = calculateCEAQI(r[3], id);
+          const m = L.circleMarker([r[1], r[2]], { radius: 10, fillColor: getAQIColor(aqi), color: "#000", weight: 2, fillOpacity: 0.9 }).addTo(map);
+          markerMap[id] = m; sel.add(new Option(SENSORS[id], id));
+          m.on('click', () => { sel.value = id; handleDropdownChange(id); });
+        }
+      });
+    } catch(e) { console.error("Map pull failed", e); }
+    updateDisplay("203577");
   }
   init();
 </script>
