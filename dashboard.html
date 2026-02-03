@@ -22,7 +22,6 @@
         .aqi-num { font-size: 48px; font-weight: 800; margin: 5px 0; }
         select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
         
-        /* Tooltip styling for Map Hover */
         .leaflet-tooltip-own {
             background: #1a305e; color: white; border: 1px solid white;
             border-radius: 6px; padding: 8px; font-size: 12px; line-height: 1.4;
@@ -64,7 +63,7 @@
 </div>
 
 <script>
-    const KEY = "9ADB5C6C-A9B0-11EF-A261-42010A80000F";
+    const KEY = "9ADB5C6C-A9B0-11EF-A261-42010A80000F"; // Key is back
     const DC_AVG_ID = "175563";
     const STATIONS = { "284362": "EJAT.PG.1.284362", "52823": "EJAT.CV.6.52823", "53677": "EJAT.CV.1.53677", "54239": "EJAT.CV.6.54239", "54293": "EJAT.CV.2.54293", "57777": "EJAT.CV.1.57777", "57783": "EJAT.CV.6.57783", "57811": "EJAT.CV.4.57811", "57841": "EJAT.CV.3.57841", "57955": "EJAT.FH.1.57955", "160037": "EJAT.PG.1.160037", "175563": "EJAT.PG.1.175563", "178169": "EJAT.PG.1.178169", "181253": "EJAT.CH.1.181253", "184191": "EJAT.PG.1.184191", "185085": "EJAT.FH.1.185085", "197937": "EJAT.PG.1.197937", "203577": "EJAT.CV.2.203577", "203597": "EJAT.FH.1.203597", "203601": "EJAT.CV.1.203601", "207729": "EJAT.CV.1.207729", "211993": "EJAT.CV.3.211993", "218227": "EJAT.PG.1.218227", "218237": "EJAT.PG.1.218237", "218273": "EJAT.PG.1.218273" };
 
@@ -81,9 +80,9 @@
         options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time' }, y: { beginAtZero: true } } }
     });
 
-    // New SafeFetch using corsproxy.io for GitHub Pages stability
     async function safeFetch(url) {
         const fullUrl = url + (url.includes('?') ? '&' : '?') + 'api_key=' + KEY;
+        // Using corsproxy.io to bypass GitHub's CORS blocks
         const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(fullUrl)}`;
         try {
             const r = await fetch(proxyUrl);
