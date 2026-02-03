@@ -2,33 +2,27 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cheverly EJAT Network - Live Dashboard</title>
-    
+    <title>Cheverly EJAT Network - Live CE-AQI Dashboard</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
     <style>
         :root { --navy: #1a305e; --blue: #4477ce; }
-        body { margin: 0; font-family: system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        body { margin: 0; font-family: sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         
-        /* Navigation Tabs Header */
-        .header { background: var(--navy); color: white; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; height: 60px; flex-shrink: 0; border-bottom: 3px solid var(--blue); }
+        /* Navigation Tabs */
+        .header { background: var(--navy); color: white; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; height: 60px; flex-shrink: 0; }
         .nav-links { display: flex; height: 100%; }
-        .nav-links a { color: rgba(255,255,255,0.7); text-decoration: none; padding: 0 20px; display: flex; align-items: center; font-weight: bold; font-size: 0.9rem; transition: 0.3s; }
+        .nav-links a { color: rgba(255,255,255,0.7); text-decoration: none; padding: 0 20px; display: flex; align-items: center; font-weight: bold; transition: 0.3s; }
         .nav-links a:hover { color: white; background: rgba(255,255,255,0.1); }
         .nav-links a.active { color: white; background: rgba(255,255,255,0.2); border-bottom: 4px solid white; }
 
         #container { display: flex; flex: 1; min-height: 0; }
-        #sidebar { width: 340px; background: #f8f9fa; border-right: 1px solid #ddd; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+        #sidebar { width: 340px; background: #f8f9fa; border-right: 1px solid #ddd; padding: 20px; overflow-y: auto; }
         #map { flex: 1; background: #e9ecef; }
         
-        .card { background: white; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #eee; }
-        .aqi-main { border-top: 8px solid #ccc; }
-        .aqi-val { font-size: 64px; font-weight: 800; line-height: 1; margin: 10px 0; }
-        .label { font-size: 0.75rem; font-weight: bold; color: #666; text-transform: uppercase; letter-spacing: 1px; }
-        .protocol-note { font-size: 0.8rem; color: #555; line-height: 1.4; font-style: italic; }
+        .card { background: white; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-top: 8px solid #ccc; }
+        .aqi-val { font-size: 64px; font-weight: 800; margin: 10px 0; }
+        .label { font-size: 0.75rem; font-weight: bold; color: #666; text-transform: uppercase; }
     </style>
 </head>
 <body>
@@ -44,110 +38,87 @@
 
 <div id="container">
     <aside id="sidebar">
-        <div class="card aqi-main" id="aqiCard">
+        <div class="card" id="aqiCard">
             <div class="label">Current CE-AQI</div>
             <div class="aqi-val" id="aqiDisplay">--</div>
-            <div id="healthStatus" style="font-weight: bold; font-size: 0.9rem;">CONNECTING...</div>
+            <div id="healthStatus" style="font-weight: bold;">CONNECTING...</div>
         </div>
-
-        <div class="card">
-            <div class="label">Protocol Summary</div>
-            <p class="protocol-note">
-                Base Value = Highest individual AQI. Cumulative "adders" (1-3%) applied for co-pollutant exposure ≥ 80 AQI.
-            </p>
-        </div>
+        <p style="font-size: 0.8rem; color: #555; margin-top: 20px; line-height: 1.4;">
+            <strong>Protocol Summary:</strong> Identifies the highest individual pollutant AQI (Base Value) and adds cumulative multipliers (1-3%) for co-pollutant exposure.
+        </p>
     </aside>
     <div id="map"></div>
 </div>
 
 <script>
-    // API KEYS & CONFIG
+    // API CONFIG
     const QA_KEY = "QC2TTD7QPKL1GXSTHDXAXOC3";
-    const COMET_API = "40685f12-d3e5-316e-a274-e0a628c20c97";
+    const COMET_KEY = "40685f12-d3e5-316e-a274-e0a628c20c97";
     const PROXY = "https://api.allorigins.win/get?url=";
 
-    // 1. CE-AQI CALCULATION (Step 2 of Protocol)
-    function calculateCEAQI(pollutantAQIs) {
-        // Step 1: Identify Base Value (Highest individual AQI)
-        const values = Object.values(pollutantAQIs);
-        const baseValue = Math.max(...values); 
-        let totalAdders = 0;
+    // 1. CE-AQI LOGIC (Protocol Step 2)
+    function calculateCEAQI(aqis) {
+        const values = Object.values(aqis);
+        const baseValue = Math.max(...values); // Identify Base Value
+        let adders = 0;
 
-        for (let key in pollutantAQIs) {
-            let aqi = pollutantAQIs[key];
-            
-            // Step 2: Skip the pollutant that is the basis of the Base Value
-            if (aqi === baseValue) continue; 
+        for (let key in aqis) {
+            let val = aqis[key];
+            if (val === baseValue) continue; // Skip basis for Base Value
 
-            // Step 3: Apply cumulative adders when warranted
-            if (aqi >= 120) totalAdders += (baseValue * 0.03);
-            else if (aqi >= 100) totalAdders += (baseValue * 0.02);
-            else if (aqi >= 80) totalAdders += (baseValue * 0.01);
+            // Apply 1%, 2%, or 3% adders
+            if (val >= 120) adders += (baseValue * 0.03);
+            else if (val >= 100) adders += (baseValue * 0.02);
+            else if (val >= 80) adders += (baseValue * 0.01);
         }
-
-        // Step 4: Final CE-AQI = Base Value + Adders
-        return Math.round(baseValue + totalAdders);
+        return Math.round(baseValue + adders);
     }
 
     // 2. DATA FETCHING
-    async function updateDashboard() {
+    async function updateData() {
         try {
-            // Fetch Quant-AQ via Proxy to bypass CORS policy
+            // Fetch Quant-AQ via Proxy to fix CORS
             const qaUrl = encodeURIComponent(`https://api.quant-aq.com/v1/devices/MOD-PM-00632/data/?api_key=${QA_KEY}`);
             const qaResp = await fetch(PROXY + qaUrl);
-            const qaRaw = await qaResp.json();
-            const qaData = JSON.parse(qaRaw.contents).data[0];
-            
-            // Fetch COMET (Black Carbon) via Proxy
-            const cometUrl = encodeURIComponent(`https://grovestreams.com/api/v1/data/values?api_key=${COMET_API}&itemUid=b23f4615-846f-3426-9231-4a73bc94a40b`);
+            const qaJson = await qaResp.json();
+            const qaData = JSON.parse(qaJson.contents).data[0];
+
+            // Fetch Black Carbon (COMET) via Proxy
+            const cometUrl = encodeURIComponent(`https://grovestreams.com/api/v1/data/values?api_key=${COMET_KEY}&itemUid=b23f4615-846f-3426-9231-4a73bc94a40b`);
             const bcResp = await fetch(PROXY + cometUrl);
-            const bcRaw = await bcResp.json();
-            const bcValue = JSON.parse(bcRaw.contents)[0].value;
+            const bcJson = await bcResp.json();
+            const bcVal = JSON.parse(bcJson.contents)[0].value;
 
-            // Placeholder mapping for pollutant-specific AQIs (Step 1 of Protocol)
-            // In final version, replace these with real AQI conversion functions
-            const currentAQIs = {
-                pm25_24h: 105,  // Example PurpleAir 24hr AQI
-                ozone_8h: 82,   // Example Quant-AQ Ozone 8hr AQI
-                bc_annual: 45   // Example COMET Black Carbon AQI
-            };
+            // Apply Step 2 Math
+            const finalScore = calculateCEAQI({
+                pm25: 105, // Placeholder (PurpleAir 24hr)
+                ozone: 82, // Placeholder (Quant-AQ 8hr)
+                bc: 45     // Placeholder (COMET Annual)
+            });
 
-            const finalScore = calculateCEAQI(currentAQIs);
             document.getElementById('aqiDisplay').innerText = finalScore;
-            updateUI(finalScore);
+            updateStatus(finalScore);
 
         } catch (err) {
-            console.error("Fetch Error:", err);
-            document.getElementById('healthStatus').innerText = "OFFLINE / ERROR";
+            console.error(err);
+            document.getElementById('healthStatus').innerText = "DATA ERROR";
         }
     }
 
-    function updateUI(aqi) {
+    function updateStatus(aqi) {
         const card = document.getElementById('aqiCard');
         const status = document.getElementById('healthStatus');
-        
-        // Colors and Health Categories from Page 4 Table
-        if (aqi <= 50) { 
-            card.style.borderTopColor = "#00e400"; // Green
-            status.innerText = "GOOD"; 
-        } else if (aqi <= 100) { 
-            card.style.borderTopColor = "#ffff00"; // Yellow
-            status.innerText = "MODERATE"; 
-        } else if (aqi <= 150) { 
-            card.style.borderTopColor = "#ff7e00"; // Orange
-            status.innerText = "UNHEALTHY (SENSITIVE)"; 
-        } else { 
-            card.style.borderTopColor = "#ff0000"; // Red
-            status.innerText = "UNHEALTHY"; 
-        }
+        // Colors & Categories based on health impact
+        if (aqi <= 50) { card.style.borderTopColor = "#00e400"; status.innerText = "GOOD"; }
+        else if (aqi <= 100) { card.style.borderTopColor = "#ffff00"; status.innerText = "MODERATE"; }
+        else if (aqi <= 150) { card.style.borderTopColor = "#ff7e00"; status.innerText = "SENSITIVE"; }
+        else { card.style.borderTopColor = "#ff0000"; status.innerText = "UNHEALTHY"; }
     }
 
-    // Initialize Map
-    const map = L.map('map').setView([38.923, -76.915], 14);
+    // Initialize
+    const map = L.map('map').setView([38.92, -76.91], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-    updateDashboard();
-    setInterval(updateDashboard, 300000); // Refresh every 5 minutes
+    updateData();
 </script>
 </body>
 </html>
