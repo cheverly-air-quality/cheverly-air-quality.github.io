@@ -14,47 +14,57 @@
     :root { --brand-navy: #1a305e; --search-blue: #4477ce; --orange: #f59e0b; }
     html, body { margin: 0; padding: 0; height: 100%; width: 100%; font-family: "Segoe UI", sans-serif; overflow: hidden; background: #fdfdfd; }
     .topbar { background: var(--brand-navy); color: white; padding: 0 25px; display: flex; justify-content: space-between; align-items: center; height: 60px; z-index: 2000; }
-    .nav a { color: white; text-decoration: none; margin-left: 20px; font-size: 0.9rem; opacity: 0.8; }
     #layout { display: flex; height: calc(100vh - 60px); width: 100vw; }
-    #sidebar { width: 380px; background: #f4f6f8; border-right: 1px solid #ddd; padding: 15px; overflow-y: auto; box-sizing: border-box; }
+    #sidebar { width: 380px; background: #f4f6f8; border-right: 1px solid #ddd; padding: 15px; overflow-y: auto; box-sizing: border-box; z-index: 100; }
     .card { background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 12px; }
     label { font-size: 0.7rem; font-weight: bold; color: #666; text-transform: uppercase; display: block; }
     input, select { width: 100%; padding: 10px; margin-top: 5px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
     button { width: 100%; padding: 12px; margin-top: 8px; border-radius: 4px; border: none; background: var(--search-blue); color: white; font-weight: bold; cursor: pointer; }
-    #main-content { flex: 1; display: flex; flex-direction: column; height: 100%; position: relative; }
-    #map { height: 45%; width: 100%; border-bottom: 1px solid #ddd; z-index: 1; }
-    #chart-box { height: 55%; width: 100%; padding: 15px; box-sizing: border-box; background: white; }
-    .aqi-val { font-size: 72px; font-weight: 900; display: block; text-align: center; line-height: 1.1; text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000; }
-    .health-msg { margin-top: 10px; font-size: 0.8rem; padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 4px; }
     
-    .map-legend { background: white; padding: 10px; border-radius: 5px; border: 2px solid #ccc; line-height: 1.4; font-size: 11px; box-shadow: 0 0 10px rgba(0,0,0,0.15); }
+    #main-content { flex: 1; display: flex; flex-direction: column; position: relative; }
+    #map { height: 45%; width: 100%; border-bottom: 1px solid #ddd; }
+    #chart-box { height: 55%; width: 100%; padding: 15px; box-sizing: border-box; background: white; }
+    
+    .aqi-val { font-size: 72px; font-weight: 900; display: block; text-align: center; line-height: 1.1; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
+    
+    /* STUBBORN BOTTOM LEFT LEGEND */
+    #fixed-legend {
+      position: absolute; bottom: 20px; left: 20px; 
+      background: white; padding: 10px; border-radius: 5px; 
+      border: 2px solid #ccc; z-index: 1000; font-size: 11px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    }
     .legend-item { display: flex; align-items: center; margin-bottom: 4px; font-weight: bold; }
-    .dot { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid #000; display: inline-block; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid #000; }
     .tri { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 12px solid var(--orange); margin-right: 8px; }
   </style>
 </head>
 <body>
 
-<header class="topbar">
-  <div class="brand">Cheverly Air Quality</div>
-  <nav class="nav"><a href="index.html">Home</a><a href="dashboard.html" style="font-weight:bold;">Dashboard</a><a href="writeup.html">Community Insights</a></nav>
-</header>
+<header class="topbar"><div class="brand">Cheverly Air Quality Dashboard</div></header>
 
 <div id="layout">
   <aside id="sidebar">
-    <div class="card"><label>Location Search</label><input type="text" id="addrInput" placeholder="Enter address..."><button onclick="findAddress()">Find Nearest Station</button></div>
+    <div class="card"><label>Location Search</label><input type="text" id="addrInput" placeholder="Street Address..."><button onclick="findAddress()">Find Closest Station</button></div>
     <div class="card"><label>Station Index</label><select id="devSel" onchange="handleDropdownChange(this.value)"></select></div>
-    <div class="card" style="min-height: 150px;">
-      <label>Live Station Reading</label>
-      <div id="details" style="text-align:center;">
-        <div id="statName" style="font-weight:bold; font-size:0.9rem; margin-bottom:5px;">--</div>
-        <div id="statAQI" class="aqi-val" style="color:#ccc;">--</div>
-        <div style="font-size:0.75rem; color:#666; font-weight: bold;">CUMULATIVE CE-AQI</div>
-        <div id="healthAdvice" class="health-msg" style="display:none;"></div>
-      </div>
+    <div class="card" style="text-align:center;">
+      <div id="statName" style="font-weight:bold; font-size:0.9rem; margin-bottom:5px;">--</div>
+      <div id="statAQI" class="aqi-val" style="color:#ccc;">--</div>
+      <div style="font-size:0.75rem; color:#666; font-weight: bold;">CUMULATIVE CE-AQI</div>
     </div>
   </aside>
-  <div id="main-content"><div id="map"></div><div id="chart-box"><canvas id="airChart"></canvas></div></div>
+  
+  <div id="main-content">
+    <div id="map"></div>
+    <div id="fixed-legend">
+      <div class="legend-item"><span class="dot" style="background:#00e400"></span> Good (0-50)</div>
+      <div class="legend-item"><span class="dot" style="background:#ffff00"></span> Moderate (51-100)</div>
+      <div class="legend-item"><span class="dot" style="background:#ff7e00"></span> Sensitive (101-150)</div>
+      <div class="legend-item"><span class="dot" style="background:#ff0000"></span> Unhealthy (151+)</div>
+      <div class="legend-item"><span class="tri"></span> SPOD Gas Sensor</div>
+    </div>
+    <div id="chart-box"><canvas id="airChart"></canvas></div>
+  </div>
 </div>
 
 <script>
@@ -83,37 +93,24 @@
   const map = L.map('map').setView([38.922, -76.915], 14);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-  const legend = L.control({position: 'bottomleft'});
-  legend.onAdd = function() {
-    const div = L.DomUtil.create('div', 'map-legend');
-    div.innerHTML = `
-      <div class="legend-item"><span class="dot" style="background:#00e400"></span> Good (0-50)</div>
-      <div class="legend-item"><span class="dot" style="background:#ffff00"></span> Moderate (51-100)</div>
-      <div class="legend-item"><span class="dot" style="background:#ff7e00"></span> Sensitive (101-150)</div>
-      <div class="legend-item"><span class="dot" style="background:#ff0000"></span> Unhealthy (151+)</div>
-      <div class="legend-item"><span class="tri"></span> SPOD Gas Sensor</div>`;
-    return div;
-  };
-  legend.addTo(map);
-
   const chart = new Chart(document.getElementById('airChart').getContext('2d'), {
     type: 'line',
     data: { datasets: [
       { label: 'Local Station', data: [], borderColor: '#4477ce', tension: 0.1, fill: true, backgroundColor: 'rgba(68, 119, 206, 0.1)' },
-      { label: 'DC City Area Avg', data: [], borderColor: '#ff0000', borderDash: [5, 5], tension: 0.1, fill: false }
+      { label: 'DC Comparison', data: [], borderColor: '#ff0000', borderDash: [5, 5], tension: 0.1, fill: false }
     ]},
     options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time' }, y: { beginAtZero: true } } }
   });
+
+  function getAQIColor(aqi) {
+    if (aqi <= 50) return "#00e400"; if (aqi <= 100) return "#ffff00"; if (aqi <= 150) return "#ff7e00"; return "#ff0000";
+  }
 
   function calculateCEAQI(pm, id) {
     if (!pm || pm < 0) return 0;
     let base = pm <= 12 ? Math.round(pm * 4.16) : pm <= 35.4 ? Math.round(2.1*(pm-12)+51) : pm <= 55.4 ? Math.round(2.45*(pm-35.4)+101) : Math.round(pm+100);
     let adder = ["203577", "54293", "52823", "218273"].includes(String(id)) ? 1.03 : 1.01;
     return Math.round(base * adder);
-  }
-
-  function getAQIColor(aqi) {
-    if (aqi <= 50) return "#00e400"; if (aqi <= 100) return "#ffff00"; if (aqi <= 150) return "#ff7e00"; return "#ff0000";
   }
 
   async function findAddress() {
@@ -126,6 +123,8 @@
       if (data.length > 0) {
         const uLat = parseFloat(data[0].lat), uLon = parseFloat(data[0].lon);
         map.setView([uLat, uLon], 16);
+        L.circle([uLat, uLon], {radius: 50, color: 'blue'}).addTo(map);
+        
         let nearestId = null, minDist = Infinity;
         for (let id in markerMap) {
           let d = map.distance([uLat, uLon], markerMap[id].getLatLng());
@@ -146,19 +145,17 @@
     const dcUrl = `${PROXY}${encodeURIComponent(`https://api.purpleair.com/v1/sensors/${DC_REF_ID}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`)}`;
 
     try {
-      const [localRes, dcRes] = await Promise.all([
+      const [lRes, dRes] = await Promise.all([
         fetch(localUrl, { headers: { "X-API-Key": PURPLE_AIR_KEY } }).then(r=>r.json()),
         fetch(dcUrl, { headers: { "X-API-Key": PURPLE_AIR_KEY } }).then(r=>r.json())
       ]);
-      const localData = (localRes.data || []).sort((a,b)=>a[0]-b[0]).map(r => ({ x: r[0]*1000, y: calculateCEAQI(r[1], id) }));
-      const dcData = (dcRes.data || []).sort((a,b)=>a[0]-b[0]).map(r => ({ x: r[0]*1000, y: calculateCEAQI(r[1], DC_REF_ID) }));
-      chart.data.datasets[0].data = localData; chart.data.datasets[1].data = dcData; chart.update();
-      const aqi = localData.length > 0 ? localData[localData.length-1].y : 0;
+      const lData = (lRes.data || []).sort((a,b)=>a[0]-b[0]).map(r => ({ x: r[0]*1000, y: calculateCEAQI(r[1], id) }));
+      const dData = (dRes.data || []).sort((a,b)=>a[0]-b[0]).map(r => ({ x: r[0]*1000, y: calculateCEAQI(r[1], DC_REF_ID) }));
+      chart.data.datasets[0].data = lData; chart.data.datasets[1].data = dData; chart.update();
+      const aqi = lData.length > 0 ? lData[lData.length-1].y : 0;
       document.getElementById('statName').innerText = SENSORS[id];
       document.getElementById('statAQI').innerText = aqi;
       document.getElementById('statAQI').style.color = getAQIColor(aqi);
-      const adv = document.getElementById('healthAdvice'); adv.style.display = "block";
-      adv.innerHTML = aqi > 150 ? "<b>ALERT:</b> Unhealthy." : aqi > 100 ? "<b>CAUTION:</b> Sensitive Groups." : "Satisfactory.";
     } catch(e) { console.log(e); }
   }
 
@@ -166,15 +163,16 @@
 
   async function init() {
     const sel = document.getElementById('devSel');
-    // ADD SPODS FIRST
     SPODS.forEach(s => {
       const m = L.marker([s.lat, s.lon], {icon: L.divIcon({ className: 'spod', html: `<div class="tri"></div>`, iconAnchor: [8, 12] })}).addTo(map);
       markerMap[s.sn] = m; sel.add(new Option(s.name, s.sn));
       m.on('click', () => { sel.value = s.sn; handleDropdownChange(s.sn); });
     });
 
-    // PULL PURPLE AIR SENSORS (Widened Box)
-    const url = `${PROXY}${encodeURIComponent("https://api.purpleair.com/v1/sensors?nwlng=-77.15&nwlat=39.05&selng=-76.75&selat=38.75&fields=sensor_index,latitude,longitude,pm2.5_atm")}`;
+    // FORCED FETCH: Fetch IDs specifically to ensure they appear
+    const idList = Object.keys(SENSORS).join(',');
+    const url = `${PROXY}${encodeURIComponent(`https://api.purpleair.com/v1/sensors?show_only=${idList}&fields=sensor_index,latitude,longitude,pm2.5_atm`)}`;
+    
     try {
       const res = await fetch(url, { headers: { "X-API-Key": PURPLE_AIR_KEY } }).then(r=>r.json());
       res.data.forEach(r => {
@@ -186,7 +184,7 @@
           m.on('click', () => { sel.value = id; handleDropdownChange(id); });
         }
       });
-    } catch(e) { console.error("Map pull failed", e); }
+    } catch(e) { console.error(e); }
     updateDisplay("203577");
   }
   init();
