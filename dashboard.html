@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>EJAT Air Quality Network</title>
+  <title>Cheverly EJAT Network</title>
   
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -11,155 +11,170 @@
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 
   <style>
-    :root { --brand-navy: #1a305e; --search-blue: #4477ce; --orange: #f59e0b; }
-    html, body { margin: 0; padding: 0; height: 100%; width: 100%; font-family: "Segoe UI", sans-serif; overflow: hidden; background: #fdfdfd; }
-    .topbar { background: var(--brand-navy); color: white; padding: 0 25px; display: flex; justify-content: space-between; align-items: center; height: 60px; z-index: 2000; }
-    .nav a { color: white; text-decoration: none; margin-left: 20px; font-size: 0.9rem; opacity: 0.8; }
-    #layout { display: flex; height: calc(100vh - 60px); width: 100vw; }
-    #sidebar { width: 380px; background: #f4f6f8; border-right: 1px solid #ddd; padding: 15px; overflow-y: auto; box-sizing: border-box; }
-    .card { background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 12px; }
-    label { font-size: 0.7rem; font-weight: bold; color: #666; text-transform: uppercase; display: block; }
-    input, select { width: 100%; padding: 10px; margin-top: 5px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
-    button { width: 100%; padding: 12px; margin-top: 8px; border-radius: 4px; border: none; background: var(--search-blue); color: white; font-weight: bold; cursor: pointer; }
-    #main-content { flex: 1; display: flex; flex-direction: column; height: 100%; position: relative; }
-    #map { height: 45%; width: 100%; border-bottom: 1px solid #ddd; z-index: 1; }
-    #chart-box { height: 55%; width: 100%; padding: 15px; box-sizing: border-box; background: white; }
-    .aqi-val { font-size: 72px; font-weight: 900; display: block; text-align: center; line-height: 1.1; text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000; }
-    .sidebar-legend { margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; text-align: left; }
-    .legend-item { display: flex; align-items: center; margin-bottom: 5px; font-weight: bold; font-size: 11px; }
-    .dot { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid #000; display: inline-block; }
-    .tri { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 12px solid var(--orange); margin-right: 8px; }
+    :root { --navy: #1a305e; --blue: #4477ce; --orange: #f59e0b; }
+    body { margin: 0; font-family: sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    .topbar { background: var(--navy); color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; z-index: 2000; }
+    .nav a { color: white; text-decoration: none; margin-left: 20px; font-size: 0.9rem; }
+    
+    #layout { display: flex; flex: 1; min-height: 0; }
+    #sidebar { width: 360px; background: #f8f9fa; border-right: 1px solid #ddd; padding: 20px; overflow-y: auto; box-sizing: border-box; }
+    #main { flex: 1; display: flex; flex-direction: column; }
+    #map { height: 45%; border-bottom: 1px solid #ddd; }
+    #chart-box { height: 55%; padding: 20px; background: white; box-sizing: border-box; }
+
+    .card { background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 15px; }
+    label { font-size: 0.7rem; font-weight: bold; color: #666; text-transform: uppercase; }
+    input, select { width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+    button { width: 100%; padding: 12px; background: var(--blue); color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+    
+    .aqi-val { font-size: 64px; font-weight: 900; text-align: center; display: block; line-height: 1; margin: 10px 0; text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; }
+    .legend-item { display: flex; align-items: center; margin-bottom: 6px; font-size: 12px; font-weight: bold; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; margin-right: 10px; border: 1px solid #333; }
+    .tri { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 12px solid var(--orange); margin-right: 10px; }
+    .search-ring { width: 10px; height: 10px; border-radius: 50%; border: 3px solid red; background: white; margin-right: 10px; }
   </style>
 </head>
 <body>
 
-<header class="topbar">
-  <div class="brand">Cheverly Air Quality</div>
-  <nav class="nav"><a href="index.html">Home</a><a href="dashboard.html" style="font-weight:bold;">Dashboard</a><a href="writeup.html">Community Insights</a></nav>
-</header>
+<div class="topbar">
+  <div>Cheverly EJAT Network</div>
+  <nav class="nav"><a href="index.html">Home</a><a href="dashboard.html" style="font-weight:bold">Dashboard</a></nav>
+</div>
 
 <div id="layout">
   <aside id="sidebar">
-    <div class="card"><label>Location Search</label><input type="text" id="addrInput" placeholder="Enter address..."><button onclick="findAddress()">Find Nearest Station</button></div>
-    <div class="card"><label>Station Index</label><select id="devSel" onchange="handleDropdownChange(this.value)"></select></div>
     <div class="card">
-      <label>Live Station Reading</label>
-      <div id="details" style="text-align:center;">
-        <div id="statName" style="font-weight:bold; font-size:0.9rem; margin-bottom:5px;">--</div>
-        <div id="statAQI" class="aqi-val" style="color:#ccc;">--</div>
-        <div style="font-size:0.75rem; color:#666; font-weight: bold;">CUMULATIVE CE-AQI</div>
-        <div class="sidebar-legend">
-          <div class="legend-item"><span class="dot" style="background:#00e400"></span> Good (0-50)</div>
-          <div class="legend-item"><span class="dot" style="background:#ffff00"></span> Moderate (51-100)</div>
-          <div class="legend-item"><span class="dot" style="background:#ff7e00"></span> Sensitive (101-150)</div>
-          <div class="legend-item"><span class="dot" style="background:#ff0000"></span> Unhealthy (151+)</div>
-          <div class="legend-item"><span class="tri"></span> SPOD Gas Sensor</div>
-          <div class="legend-item"><span class="dot" style="background:#fff; border: 3px solid red; width: 10px; height: 10px;"></span> Your Search Location</div>
-        </div>
-      </div>
+      <label>Location Search</label>
+      <input type="text" id="addrInput" placeholder="Enter street address...">
+      <button onclick="findAddress()">Find Nearest Station</button>
+    </div>
+    <div class="card">
+      <label>Station Selection</label>
+      <select id="devSel" onchange="handleSelect(this.value)"></select>
+    </div>
+    <div class="card" style="text-align:center;">
+      <label id="statLabel">Current Reading</label>
+      <div id="aqiDisplay" class="aqi-val" style="color:#ccc;">--</div>
+      <div style="font-size:0.7rem; font-weight:bold; color:#555;">CE-AQI (Cumulative)</div>
+      <hr style="margin:15px 0; border:0; border-top:1px solid #eee;">
+      <div class="legend-item"><span class="dot" style="background:#00e400"></span> Good (0-50)</div>
+      <div class="legend-item"><span class="dot" style="background:#ffff00"></span> Moderate (51-100)</div>
+      <div class="legend-item"><span class="dot" style="background:#ff7e00"></span> Sensitive (101-150)</div>
+      <div class="legend-item"><span class="dot" style="background:#ff0000"></span> Unhealthy (151+)</div>
+      <div class="legend-item"><span class="tri"></span> SPOD Gas Sensor</div>
+      <div class="legend-item"><span class="search-ring"></span> Your Search Location</div>
     </div>
   </aside>
-  <div id="main-content"><div id="map"></div><div id="chart-box"><canvas id="airChart"></canvas></div></div>
+
+  <main id="main">
+    <div id="map"></div>
+    <div id="chart-box"><canvas id="airChart"></canvas></div>
+  </main>
 </div>
 
 <script>
-  const PURPLE_AIR_KEY = "9ADB5C6C-A9B0-11EF-A261-42010A80000F";
-  const DC_REF_ID = "175563"; 
-  
-  // Rotating proxies to bypass CORS preflight blocks
+  const API_KEY = "9ADB5C6C-A9B0-11EF-A261-42010A80000F";
+  const DC_REF = "175563";
+  // Updated reliable proxy rotation
   const PROXIES = [
     "https://api.allorigins.win/raw?url=",
-    "https://corsproxy.io/?",
-    "https://thingproxy.freeboard.io/fetch/"
+    "https://thingproxy.freeboard.io/fetch/",
+    "https://corsproxy.io/?"
   ];
-  let proxyIdx = 0;
+  let pIdx = 0;
 
-  const SENSORS = { "284362": "EJAT.PG.1.284362", "52823": "EJAT.CV.6.52823", "53677": "EJAT.CV.1.53677", "54239": "EJAT.CV.6.54239", "54293": "EJAT.CV.2.54293", "57777": "EJAT.CV.1.57777", "57783": "EJAT.CV.6.57783", "57811": "EJAT.CV.4.57811", "57841": "EJAT.CV.3.57841", "57955": "EJAT.FH.1.57955", "160037": "EJAT.PG.1.160037", "175563": "EJAT.PG.1.175563", "178169": "EJAT.PG.1.178169", "181253": "EJAT.CH.1.181253", "184191": "EJAT.PG.1.184191", "185085": "EJAT.FH.1.185085", "197937": "EJAT.PG.1.197937", "203577": "EJAT.CV.2.203577 (Supersite)", "203597": "EJAT.FH.1.203597", "203601": "EJAT.CV.1.203601", "207729": "EJAT.CV.1.207729", "211993": "EJAT.CV.3.211993", "218227": "EJAT.PG.1.218227", "218237": "EJAT.PG.1.218237", "218273": "EJAT.PG.1.218273" };
+  const SENSORS = { "284362": "EJAT.PG.1.284362", "52823": "EJAT.CV.6.52823", "53677": "EJAT.CV.1.53677", "54239": "EJAT.CV.6.54239", "54293": "EJAT.CV.2.54293", "57777": "EJAT.CV.1.57777", "57783": "EJAT.CV.6.57783", "57811": "EJAT.CV.4.57811", "57841": "EJAT.CV.3.57841", "57955": "EJAT.FH.1.57955", "160037": "EJAT.PG.1.160037", "175563": "EJAT.PG.1.175563", "178169": "EJAT.PG.1.178169", "181253": "EJAT.CH.1.181253", "184191": "EJAT.PG.1.184191", "185085": "EJAT.FH.1.185085", "197937": "EJAT.PG.1.197937", "203577": "EJAT.CV.2.203577", "203597": "EJAT.FH.1.203597", "203601": "EJAT.CV.1.203601", "207729": "EJAT.CV.1.207729", "211993": "EJAT.CV.3.211993", "218227": "EJAT.PG.1.218227", "218237": "EJAT.PG.1.218237", "218273": "EJAT.PG.1.218273" };
   const SPODS = [{ sn: "MOD-PM-001616", name: "EJAT.SPOD.CV.1616", lat: 38.9221, lon: -76.9215 }, { sn: "MOD-PM-001619", name: "EJAT.SPOD.CV.1619", lat: 38.9168, lon: -76.9100 }];
 
-  let markerMap = {}, searchPin = null;
-  const map = L.map('map').setView([38.922, -76.915], 14);
+  let markers = {}, searchMarker = null;
+  const map = L.map('map').setView([38.923, -76.915], 14);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
   const chart = new Chart(document.getElementById('airChart').getContext('2d'), {
     type: 'line',
     data: { datasets: [
-      { label: 'Local Station', data: [], borderColor: '#4477ce', tension: 0.1, fill: true, backgroundColor: 'rgba(68, 119, 206, 0.1)' },
-      { label: 'DC City Area Avg', data: [], borderColor: '#ff0000', borderDash: [5, 5], tension: 0.1, fill: false }
+      { label: 'Selected Station', data: [], borderColor: '#4477ce', tension: 0.2, fill: true, backgroundColor: 'rgba(68, 119, 206, 0.1)' },
+      { label: 'DC City Avg', data: [], borderColor: 'red', borderDash: [5,5], tension: 0.2, fill: false }
     ]},
     options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time' }, y: { beginAtZero: true } } }
   });
 
-  async function smartFetch(targetUrl) {
+  async function call(url) {
     for (let i = 0; i < PROXIES.length; i++) {
       try {
-        const fullUrl = `${PROXIES[proxyIdx]}${encodeURIComponent(targetUrl)}`;
-        const r = await fetch(fullUrl, { headers: { "X-API-Key": PURPLE_AIR_KEY } });
+        const full = `${PROXIES[pIdx]}${encodeURIComponent(url)}`;
+        const r = await fetch(full, { headers: { "X-API-Key": API_KEY } });
         if (r.ok) return await r.json();
-      } catch (e) {
-        proxyIdx = (proxyIdx + 1) % PROXIES.length; // Rotate proxy on error
-      }
+      } catch (e) { pIdx = (pIdx + 1) % PROXIES.length; }
     }
-    throw new Error("All proxies failed.");
+    throw "Fetch failed";
   }
 
-  function calculateCEAQI(pm) {
+  function getColor(v) {
+    return v <= 50 ? "#00e400" : v <= 100 ? "#ffff00" : v <= 150 ? "#ff7e00" : "#ff0000";
+  }
+
+  function toAQI(pm) {
     if (!pm || pm < 0) return 0;
-    return pm <= 12 ? Math.round(pm * 4.16) : pm <= 35.4 ? Math.round(2.1*(pm-12)+51) : pm <= 55.4 ? Math.round(2.45*(pm-35.4)+101) : Math.round(pm+100);
+    if (pm <= 12) return Math.round(pm * 4.16);
+    if (pm <= 35.4) return Math.round(2.1 * (pm - 12) + 51);
+    return Math.round(pm + 100);
   }
 
   async function findAddress() {
-    const addr = document.getElementById('addrInput').value;
-    if (!addr) return;
+    const q = document.getElementById('addrInput').value;
+    if (!q) return;
     try {
-      const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr + ", Cheverly, MD")}`);
-      const data = await resp.json();
-      if (data.length > 0) {
-        const uLat = parseFloat(data[0].lat), uLon = parseFloat(data[0].lon);
-        if (searchPin) map.removeLayer(searchPin);
-        // Drops search pin on map
-        searchPin = L.circleMarker([uLat, uLon], { radius: 12, fillColor: "#fff", color: "red", weight: 4, fillOpacity: 1 }).addTo(map).bindPopup("Search Location").openPopup();
-        map.flyTo([uLat, uLon], 16);
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q + ", Cheverly, MD")}`);
+      const d = await r.json();
+      if (d.length > 0) {
+        const lat = d[0].lat, lon = d[0].lon;
+        if (searchMarker) map.removeLayer(searchMarker);
+        searchMarker = L.circleMarker([lat, lon], { radius: 10, color: 'red', fillColor: 'white', fillOpacity: 1, weight: 3 }).addTo(map);
+        map.flyTo([lat, lon], 16);
       }
     } catch(e) { console.error(e); }
   }
 
-  async function updateDisplay(id) {
-    const start = Math.floor(Date.now()/1000)-86400;
+  async function refresh(id) {
+    const start = Math.floor(Date.now()/1000) - 86400;
     try {
-      const [localRes, dcRes] = await Promise.all([
-        smartFetch(`https://api.purpleair.com/v1/sensors/${id}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`),
-        smartFetch(`https://api.purpleair.com/v1/sensors/${DC_REF_ID}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`)
+      const [loc, dc] = await Promise.all([
+        call(`https://api.purpleair.com/v1/sensors/${id}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`),
+        call(`https://api.purpleair.com/v1/sensors/${DC_REF}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`)
       ]);
-      const localData = (localRes.data || []).map(r => ({ x: r[0]*1000, y: calculateCEAQI(r[1]) }));
-      chart.data.datasets[0].data = localData; chart.update();
-      document.getElementById('statAQI').innerText = localData.length ? localData[localData.length-1].y : "0";
-      document.getElementById('statAQI').style.color = "#00e400";
-    } catch(e) { document.getElementById('statAQI').innerText = "ERR"; }
+      const parse = d => (d.data || []).map(r => ({ x: r[0]*1000, y: toAQI(r[1]) }));
+      chart.data.datasets[0].data = parse(loc);
+      chart.data.datasets[1].data = parse(dc);
+      chart.update();
+      const val = chart.data.datasets[0].data.slice(-1)[0]?.y || 0;
+      document.getElementById('aqiDisplay').innerText = val;
+      document.getElementById('aqiDisplay').style.color = getColor(val);
+      document.getElementById('statLabel').innerText = SENSORS[id] || "Station Reading";
+    } catch(e) { document.getElementById('aqiDisplay').innerText = "ERR"; }
   }
 
-  function handleDropdownChange(id) { if(markerMap[id]) { map.flyTo(markerMap[id].getLatLng(), 15); updateDisplay(id); } }
+  function handleSelect(id) { if(markers[id]) { map.flyTo(markers[id].getLatLng(), 15); refresh(id); } }
 
   async function init() {
     const sel = document.getElementById('devSel');
     SPODS.forEach(s => {
-      const m = L.marker([s.lat, s.lon], {icon: L.divIcon({ className: 'spod', html: `<div class="tri"></div>`, iconAnchor: [8, 12] })}).addTo(map);
-      markerMap[s.sn] = m; sel.add(new Option(s.name, s.sn));
-      m.on('click', () => { sel.value = s.sn; handleDropdownChange(s.sn); });
+      const m = L.marker([s.lat, s.lon], { icon: L.divIcon({ className:'', html:`<div class="tri"></div>` })}).addTo(map);
+      markers[s.sn] = m; sel.add(new Option(s.name, s.sn));
+      m.on('click', () => { sel.value = s.sn; handleSelect(s.sn); });
     });
-
     try {
-      const res = await smartFetch("https://api.purpleair.com/v1/sensors?nwlng=-77.15&nwlat=39.05&selng=-76.75&selat=38.75&fields=sensor_index,latitude,longitude,pm2.5_atm");
+      const res = await call("https://api.purpleair.com/v1/sensors?nwlng=-77.15&nwlat=39.05&selng=-76.75&selat=38.75&fields=sensor_index,latitude,longitude,pm2.5_atm");
       res.data.forEach(r => {
         const id = String(r[0]);
         if (SENSORS[id]) {
-          const m = L.circleMarker([r[1], r[2]], { radius: 10, fillColor: "#00e400", color: "#000", weight: 2, fillOpacity: 0.9 }).addTo(map);
-          markerMap[id] = m; sel.add(new Option(SENSORS[id], id));
-          m.on('click', () => { sel.value = id; handleDropdownChange(id); });
+          const m = L.circleMarker([r[1], r[2]], { radius: 10, fillColor: getColor(toAQI(r[3])), color: "#000", weight: 2, fillOpacity: 0.9 }).addTo(map);
+          markers[id] = m; sel.add(new Option(SENSORS[id], id));
+          m.on('click', () => { sel.value = id; handleSelect(id); });
         }
       });
-    } catch(e) { console.error("Map pull failed", e); }
-    updateDisplay("203577");
+    } catch(e) {}
+    refresh("203577");
   }
   init();
 </script>
