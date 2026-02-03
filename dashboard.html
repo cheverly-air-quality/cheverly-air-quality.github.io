@@ -20,9 +20,9 @@
         #chart-container { flex: 1; padding: 15px; background: white; }
         .stat-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; border-top: 4px solid var(--blue); }
         .aqi-num { font-size: 48px; font-weight: 800; margin: 5px 0; }
-        select, input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        button { width: 100%; padding: 10px; background: var(--blue); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
         
+        /* Tooltip styling for Map Hover */
         .leaflet-tooltip-own {
             background: #1a305e; color: white; border: 1px solid white;
             border-radius: 6px; padding: 8px; font-size: 12px; line-height: 1.4;
@@ -35,32 +35,26 @@
 
 <div class="header">
     <span>Cheverly EJAT Network</span>
-    <span style="font-size:0.7rem; opacity:0.8;">Local VS Code Version</span>
+    <span style="font-size:0.7rem; opacity:0.8;">Live GitHub Portal</span>
 </div>
 
 <div id="container">
     <aside id="sidebar">
         <div class="stat-card">
-            <div id="stationLabel" style="font-size: 0.7rem; color: #666; font-weight: bold;">SELECT A STATION</div>
+            <div id="stationLabel" style="font-size: 0.7rem; color: #666; font-weight: bold;">STATION DATA</div>
             <div id="aqiVal" class="aqi-num" style="color: #bbb;">--</div>
-            <div id="statusLabel" style="font-size: 0.7rem; font-weight: bold;">FETCHING LIVE MAP...</div>
+            <div id="statusLabel" style="font-size: 0.7rem; font-weight: bold;">CONNECTING...</div>
         </div>
 
         <div>
-            <label style="font-size: 0.7rem; font-weight: bold;">STATION SELECTION</label>
+            <label style="font-size: 0.7rem; font-weight: bold;">STATION REGISTRY</label>
             <select id="stationSelect" onchange="updateStation(this.value)"></select>
         </div>
 
-        <div>
-            <label style="font-size: 0.7rem; font-weight: bold;">HOVER INFO GUIDE</label>
-            <div style="font-size: 0.75rem; background: white; padding: 8px; border: 1px solid #ddd; border-radius: 4px; line-height: 1.5;">
-                • <b>Name:</b> EJAT Registry Name<br>
-                • <b>AQI:</b> Health Risk Index<br>
-                • <b>PM2.5:</b> Raw Particle Mass (µg/m³)
-            </div>
+        <div style="font-size: 0.75rem; background: white; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            <b>Hover Map Sensors:</b><br>
+            Displays EJAT Name, Index ID,<br>and raw PM2.5 cumulative data.
         </div>
-
-        <button onclick="init()" style="background: #444;">Refresh Map Pins</button>
     </aside>
 
     <main id="content">
@@ -87,13 +81,17 @@
         options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time' }, y: { beginAtZero: true } } }
     });
 
+    // New SafeFetch using corsproxy.io for GitHub Pages stability
     async function safeFetch(url) {
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url + (url.includes('?') ? '&' : '?') + 'api_key=' + KEY)}`;
+        const fullUrl = url + (url.includes('?') ? '&' : '?') + 'api_key=' + KEY;
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(fullUrl)}`;
         try {
             const r = await fetch(proxyUrl);
-            const j = await r.json();
-            return JSON.parse(j.contents);
-        } catch (e) { return null; }
+            return await r.json();
+        } catch (e) {
+            console.error("Fetch failed:", e);
+            return null;
+        }
     }
 
     function calcAQI(pm) {
@@ -102,7 +100,7 @@
     }
 
     async function updateStation(id) {
-        document.getElementById('statusLabel').innerText = "FETCHING HISTORY...";
+        document.getElementById('statusLabel').innerText = "FETCHING...";
         document.getElementById('stationLabel').innerText = STATIONS[id] || "ID: " + id;
         
         const start = Math.floor(Date.now() / 1000) - 86400;
@@ -123,6 +121,8 @@
             display.innerText = latest;
             display.style.color = latest <= 50 ? "#00e400" : latest <= 100 ? "#e5e500" : "#ff7e00";
             document.getElementById('statusLabel').innerText = "LIVE DATA ACTIVE";
+        } else {
+            document.getElementById('statusLabel').innerText = "OFFLINE/NO DATA";
         }
         chart.update();
         if (markers[id]) map.flyTo(markers[id].getLatLng(), 15);
@@ -130,45 +130,37 @@
 
     async function init() {
         const sel = document.getElementById('stationSelect');
-        sel.innerHTML = ""; // Clear existing
         const data = await safeFetch("https://api.purpleair.com/v1/sensors?nwlng=-77.15&nwlat=39.05&selng=-76.75&selat=38.75&fields=sensor_index,latitude,longitude,pm2.5_atm");
         
         if (data?.data) {
             data.data.forEach(r => {
                 const id = String(r[0]);
-                const rawPM = r[3];
+                const rawPM = r[3] || 0;
                 const curAQI = calcAQI(rawPM);
 
                 if (STATIONS[id]) {
                     const m = L.circleMarker([r[1], r[2]], { 
-                        radius: 10, 
-                        fillColor: curAQI <= 50 ? "#00e400" : "#ffff00", 
+                        radius: 10, fillColor: curAQI <= 50 ? "#00e400" : "#ffff00", 
                         color: "#000", weight: 1.5, fillOpacity: 0.9 
                     }).addTo(map);
                     
-                    // UPDATED HOVER: Now includes Name, ID, AQI, and Raw PM2.5
                     m.bindTooltip(`
                         <div style="text-align:center;">
                             <b style="font-size:13px;">${STATIONS[id]}</b><br>
-                            <span style="opacity:0.8;">Registry ID: ${id}</span><hr style="margin:4px 0; border:0; border-top:1px solid #555;">
-                            <span style="font-size:11px;">Current AQI:</span> <b class="tt-pm" style="color:${curAQI <= 50 ? '#00ff00' : '#ffff00'}">${curAQI}</b><br>
-                            <span style="font-size:11px;">PM2.5 Mass:</span> <b class="tt-pm">${rawPM.toFixed(1)} µg/m³</b>
-                        </div>
-                    `, {
-                        permanent: false, 
-                        direction: 'top',
-                        className: 'leaflet-tooltip-own',
-                        offset: [0, -10]
-                    });
+                            <span style="opacity:0.8;">ID: ${id}</span><hr style="margin:4px 0; border:0; border-top:1px solid #555;">
+                            <span style="font-size:11px;">AQI:</span> <b class="tt-pm" style="color:${curAQI <= 50 ? '#00ff00' : '#ffff00'}">${curAQI}</b><br>
+                            <span style="font-size:11px;">PM2.5:</span> <b class="tt-pm">${rawPM.toFixed(1)} µg/m³</b>
+                        </div>`, { direction: 'top', className: 'leaflet-tooltip-own', offset: [0, -10] });
 
                     markers[id] = m;
                     sel.add(new Option(STATIONS[id], id));
                     m.on('click', () => { sel.value = id; updateStation(id); });
                 }
             });
+            updateStation("203577");
+        } else {
+            document.getElementById('statusLabel').innerText = "CONNECTION BLOCKED";
         }
-        document.getElementById('statusLabel').innerText = "MAP UPDATED";
-        updateStation("203577");
     }
 
     init();
