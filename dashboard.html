@@ -8,20 +8,20 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
   <style>
-    body { margin: 0; display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; background: #f4f7f9; }
+    body { margin: 0; display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; background: #f4f7f9; overflow: hidden; }
     header { height: 60px; background: #1a2a40; color: white; display: flex; align-items: center; padding: 0 20px; font-weight: bold; }
-    #layout { display: flex; flex: 1; overflow: hidden; }
-    #sidebar { width: 320px; background: white; border-right: 1px solid #ccc; padding: 20px; overflow-y: auto; }
-    #main-content { flex: 1; display: flex; flex-direction: column; }
-    #map { flex: 1; background: #e0e0e0; }
-    #chart-box { height: 280px; background: white; padding: 15px; border-top: 1px solid #ccc; }
+    #layout { display: flex; flex: 1; height: calc(100vh - 60px); }
+    #sidebar { width: 320px; background: white; border-right: 1px solid #ccc; padding: 20px; overflow-y: auto; z-index: 1000; }
+    #main-content { flex: 1; display: flex; flex-direction: column; position: relative; }
+    #map { flex: 1; width: 100%; background: #e0e0e0; }
+    #chart-box { height: 280px; background: white; padding: 15px; border-top: 2px solid #ddd; }
     .card { background: #fff; border: 1px solid #eee; padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .aqi-val { font-size: 3.5rem; font-weight: bold; margin: 10px 0; }
   </style>
 </head>
 <body>
 
-<header>Cheverly Air Quality Dashboard (EJAT Network)</header>
+<header>Cheverly Air Quality (EJAT Network)</header>
 
 <div id="layout">
   <aside id="sidebar">
@@ -30,10 +30,10 @@
       <select id="devSel" onchange="updateDisplay(this.value)" style="width:100%; padding:10px; margin-top:8px;"></select>
     </div>
     <div class="card" style="text-align:center;">
-      <div id="statName" style="font-weight:bold; color:#333;">Locating Stations...</div>
+      <div id="statName" style="font-weight:bold;">Scanning...</div>
       <div id="statAQI" class="aqi-val">--</div>
-      <div style="font-size: 0.7rem; font-weight: bold; color: #888;">CUMULATIVE CE-AQI</div>
-      <div id="status-msg" style="margin-top:10px; font-size: 0.7rem; color: #666;">Initializing...</div>
+      <div style="font-size: 0.7rem; font-weight: bold; color: #888;">CE-AQI (PM2.5)</div>
+      <div id="status-msg" style="margin-top:10px; font-size: 0.8rem; color: #007bff;">Ready</div>
     </div>
   </aside>
   <div id="main-content">
@@ -58,13 +58,12 @@
     "218273": "EJAT.PG.1.218273"
   };
 
-  let markers = {};
   const map = L.map('map').setView([38.925, -76.915], 14);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
   const chart = new Chart(document.getElementById('airChart').getContext('2d'), {
     type: 'line',
-    data: { datasets: [{ label: '24h History', data: [], borderColor: '#1a2a40', tension: 0.2, fill: true, backgroundColor: 'rgba(26, 42, 64, 0.1)' }] },
+    data: { datasets: [{ label: 'PM2.5 History', data: [], borderColor: '#1a2a40', tension: 0.1, fill: true, backgroundColor: 'rgba(26, 42, 64, 0.1)' }] },
     options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time' } } }
   });
 
@@ -72,30 +71,28 @@
     if (aqi <= 50) return "#00e400"; if (aqi <= 100) return "#ffff00"; if (aqi <= 150) return "#ff7e00"; return "#ff0000";
   }
 
+  let markers = {};
+
   async function init() {
-    // Cheverly Bounding Box: NW: 38.96, -76.96 | SE: 38.89, -76.87
-    const url = `${PROXY}https://api.purpleair.com/v1/sensors?nwlng=-76.96&nwlat=38.96&selng=-76.87&selat=38.89&fields=sensor_index,pm2.5_atm,latitude,longitude`;
+    // Broad box to ensure we don't miss Cheverly
+    const url = `${PROXY}https://api.purpleair.com/v1/sensors?nwlng=-77.05&nwlat=39.00&selng=-76.80&selat=38.85&fields=sensor_index,pm2.5_atm,latitude,longitude`;
     
     try {
       const resp = await fetch(url, { headers: { "X-API-Key": API_KEY, "X-Requested-With": "XMLHttpRequest" } });
       const res = await resp.json();
       
-      const sel = document.getElementById('devSel');
-      sel.innerHTML = '<option value="">Select a Station</option>';
-
-      // FIX: Find the correct column index for Lat/Lng
       const idx_id = res.fields.indexOf("sensor_index");
       const idx_lat = res.fields.indexOf("latitude");
       const idx_lng = res.fields.indexOf("longitude");
       const idx_pm = res.fields.indexOf("pm2.5_atm");
 
+      const sel = document.getElementById('devSel');
+      sel.innerHTML = '<option value="">Select a Station</option>';
+
       res.data.forEach(r => {
         const id = String(r[idx_id]);
-        const lat = r[idx_lat];
-        const lng = r[idx_lng];
-
-        if (SENSORS[id] && lat && lng) {
-          const m = L.circleMarker([lat, lng], { 
+        if (SENSORS[id]) {
+          const m = L.circleMarker([r[idx_lat], r[idx_lng]], { 
             radius: 12, fillColor: getAQIColor(r[idx_pm]), color: "#000", weight: 2, fillOpacity: 0.9 
           }).addTo(map);
           m.bindPopup(`<b>${SENSORS[id]}</b>`);
@@ -104,9 +101,17 @@
           m.on('click', () => { sel.value = id; updateDisplay(id); });
         }
       });
-      document.getElementById('status-msg').innerText = "Network Connected";
-      updateDisplay("203577");
-    } catch (e) { console.error("Init Error:", e); }
+
+      document.getElementById('status-msg').innerText = "Found " + Object.keys(markers).length + " Stations";
+      if (markers["203577"]) updateDisplay("203577");
+      
+      // Force map to redraw because it might be "hiding"
+      setTimeout(() => map.invalidateSize(), 500);
+
+    } catch (e) {
+      document.getElementById('status-msg').innerText = "CORS Link Expired - Click Sidebar Link";
+      console.error(e);
+    }
   }
 
   async function updateDisplay(id) {
@@ -117,21 +122,20 @@
     try {
       const resp = await fetch(url, { headers: { "X-API-Key": API_KEY, "X-Requested-With": "XMLHttpRequest" } });
       const res = await resp.json();
-      const sorted = res.data.sort((a, b) => a[0] - b[0]); // STOP THE SHAKY CHART
+      const sorted = res.data.sort((a, b) => a[0] - b[0]);
       
-      const latest = sorted[sorted.length - 1][1];
-      document.getElementById('statAQI').innerText = Math.round(latest);
-      document.getElementById('statAQI').style.color = getAQIColor(latest);
+      document.getElementById('statAQI').innerText = Math.round(sorted[sorted.length-1][1]);
+      document.getElementById('statAQI').style.color = getAQIColor(sorted[sorted.length-1][1]);
       document.getElementById('statName').innerText = SENSORS[id];
 
       chart.data.datasets[0].data = sorted.map(r => ({ x: r[0]*1000, y: r[1] }));
       chart.update();
-      if(markers[id]) { map.flyTo(markers[id].getLatLng(), 15); markers[id].openPopup(); }
-    } catch (e) { console.error("Update Error:", e); }
+      map.panTo(markers[id].getLatLng());
+      markers[id].openPopup();
+    } catch (e) { console.error(e); }
   }
 
   init();
-  setTimeout(() => map.invalidateSize(), 1000);
 </script>
 </body>
 </html>
