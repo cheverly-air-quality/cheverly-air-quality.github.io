@@ -17,6 +17,15 @@
     #chart-box { height: 280px; background: white; padding: 15px; border-top: 2px solid #ddd; }
     .card { background: #fff; border: 1px solid #eee; padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .aqi-val { font-size: 3.5rem; font-weight: bold; margin: 10px 0; }
+    
+    /* Legend Styles */
+    .info.legend { background: white; padding: 10px; line-height: 18px; color: #555; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2); }
+    .info.legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.7; border: 1px solid #999; }
+    
+    /* Search Box Styles */
+    .search-container { margin-bottom: 15px; display: flex; gap: 5px; }
+    #addrInput { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+    #searchBtn { padding: 8px 12px; background: #1a2a40; color: white; border: none; border-radius: 4px; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -26,14 +35,23 @@
 <div id="layout">
   <aside id="sidebar">
     <div class="card">
+      <label style="font-weight:bold; font-size: 0.9rem;">Find Your Nearest Sensor</label>
+      <div class="search-container" style="margin-top:8px;">
+        <input type="text" id="addrInput" placeholder="Enter address or street...">
+        <button id="searchBtn" onclick="findNearest()">Find</button>
+      </div>
+    </div>
+
+    <div class="card">
       <label style="font-weight:bold;">Station Selection</label>
       <select id="devSel" onchange="updateDisplay(this.value)" style="width:100%; padding:10px; margin-top:8px;"></select>
     </div>
+
     <div class="card" style="text-align:center;">
-      <div id="statName" style="font-weight:bold;">Scanning...</div>
+      <div id="statName" style="font-weight:bold;">Connecting...</div>
       <div id="statAQI" class="aqi-val">--</div>
       <div style="font-size: 0.7rem; font-weight: bold; color: #888;">CE-AQI (PM2.5)</div>
-      <div id="status-msg" style="margin-top:10px; font-size: 0.8rem; color: #007bff;">Ready</div>
+      <div id="status-msg" style="margin-top:10px; font-size: 0.8rem; color: #28a745;">System Online</div>
     </div>
   </aside>
   <div id="main-content">
@@ -61,9 +79,24 @@
   const map = L.map('map').setView([38.925, -76.915], 14);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
+  // Add the Color Key (Legend) to the Map
+  const legend = L.control({position: 'bottomright'});
+  legend.onAdd = function () {
+    const div = L.DomUtil.create('div', 'info legend');
+    const grades = [0, 50, 100, 150];
+    const labels = ["Good", "Moderate", "Unhealthy (S)", "Unhealthy"];
+    const colors = ["#00e400", "#ffff00", "#ff7e00", "#ff0000"];
+    div.innerHTML = '<strong>AQI Scale</strong><br>';
+    for (let i = 0; i < grades.length; i++) {
+      div.innerHTML += '<i style="background:' + colors[i] + '"></i> ' + labels[i] + '<br>';
+    }
+    return div;
+  };
+  legend.addTo(map);
+
   const chart = new Chart(document.getElementById('airChart').getContext('2d'), {
     type: 'line',
-    data: { datasets: [{ label: 'PM2.5 History', data: [], borderColor: '#1a2a40', tension: 0.1, fill: true, backgroundColor: 'rgba(26, 42, 64, 0.1)' }] },
+    data: { datasets: [{ label: 'PM2.5 Concentration', data: [], borderColor: '#1a2a40', tension: 0.1, fill: true, backgroundColor: 'rgba(26, 42, 64, 0.1)' }] },
     options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time' } } }
   });
 
@@ -72,11 +105,29 @@
   }
 
   let markers = {};
+  let userMarker = null;
+
+  async function findNearest() {
+    const query = document.getElementById('addrInput').value;
+    if (!query) return;
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ", Cheverly, MD")}`;
+    try {
+      const resp = await fetch(url);
+      const data = await resp.json();
+      if (data.length > 0) {
+        const lat = data[0].lat;
+        const lon = data[0].lon;
+        if (userMarker) map.removeLayer(userMarker);
+        userMarker = L.marker([lat, lon]).addTo(map).bindPopup("Your Location").openPopup();
+        map.setView([lat, lon], 16);
+      } else {
+        alert("Address not found.");
+      }
+    } catch (e) { console.error(e); }
+  }
 
   async function init() {
-    // Broad box to ensure we don't miss Cheverly
     const url = `${PROXY}https://api.purpleair.com/v1/sensors?nwlng=-77.05&nwlat=39.00&selng=-76.80&selat=38.85&fields=sensor_index,pm2.5_atm,latitude,longitude`;
-    
     try {
       const resp = await fetch(url, { headers: { "X-API-Key": API_KEY, "X-Requested-With": "XMLHttpRequest" } });
       const res = await resp.json();
@@ -101,33 +152,23 @@
           m.on('click', () => { sel.value = id; updateDisplay(id); });
         }
       });
-
-      document.getElementById('status-msg').innerText = "Found " + Object.keys(markers).length + " Stations";
       if (markers["203577"]) updateDisplay("203577");
-      
-      // Force map to redraw because it might be "hiding"
       setTimeout(() => map.invalidateSize(), 500);
-
-    } catch (e) {
-      document.getElementById('status-msg').innerText = "CORS Link Expired - Click Sidebar Link";
-      console.error(e);
-    }
+    } catch (e) { console.error(e); }
   }
 
   async function updateDisplay(id) {
     if(!id) return;
     const start = Math.floor(Date.now()/1000)-86400;
     const url = `${PROXY}https://api.purpleair.com/v1/sensors/${id}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`;
-    
     try {
       const resp = await fetch(url, { headers: { "X-API-Key": API_KEY, "X-Requested-With": "XMLHttpRequest" } });
       const res = await resp.json();
       const sorted = res.data.sort((a, b) => a[0] - b[0]);
-      
-      document.getElementById('statAQI').innerText = Math.round(sorted[sorted.length-1][1]);
-      document.getElementById('statAQI').style.color = getAQIColor(sorted[sorted.length-1][1]);
+      const latest = sorted[sorted.length-1][1];
+      document.getElementById('statAQI').innerText = Math.round(latest);
+      document.getElementById('statAQI').style.color = getAQIColor(latest);
       document.getElementById('statName').innerText = SENSORS[id];
-
       chart.data.datasets[0].data = sorted.map(r => ({ x: r[0]*1000, y: r[1] }));
       chart.update();
       map.panTo(markers[id].getLatLng());
