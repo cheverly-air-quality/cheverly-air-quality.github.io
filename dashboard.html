@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cheverly EJAT - Cumulative Exposure Dashboard</title>
+    <title>Cheverly EJAT - CE-AQI Dashboard</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
@@ -16,8 +16,8 @@
         #sidebar { width: 340px; background: #f8f9fa; border-right: 1px solid #ddd; padding: 20px; overflow-y: auto; }
         #map { flex: 1; }
         .card { background: white; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-top: 8px solid #ccc; margin-bottom: 20px; }
-        .aqi-val { font-size: 64px; font-weight: 800; margin: 10px 0; }
-        .label { font-size: 0.75rem; font-weight: bold; color: #666; text-transform: uppercase; }
+        .aqi-val { font-size: 64px; font-weight: 800; margin: 10px 0; line-height: 1; }
+        .label { font-size: 0.75rem; font-weight: bold; color: #666; text-transform: uppercase; letter-spacing: 1px; }
         .protocol-box { text-align: left; font-size: 0.85rem; line-height: 1.5; color: #444; }
     </style>
 </head>
@@ -49,11 +49,12 @@
 </div>
 
 <script>
+    // 1. CONFIGURATION
     const QA_KEY = "QC2TTD7QPKL1GXSTHDXAXOC3";
     const COMET_KEY = "40685f12-d3e5-316e-a274-e0a628c20c97";
     const PROXY = "https://api.allorigins.win/get?url=";
 
-    // 1. CE-AQI CALCULATION (Per Protocol Step 2)
+    // 2. CE-AQI PROTOCOL LOGIC
     function calculateCEAQI(pollutants) {
         const values = Object.values(pollutants);
         const baseValue = Math.max(...values);
@@ -61,8 +62,9 @@
 
         for (const key in pollutants) {
             const aqi = pollutants[key];
-            if (aqi === baseValue) continue; // Skip basis pollutant
+            if (aqi === baseValue) continue; // Skip the basis pollutant
 
+            // Apply specific multipliers based on health thresholds
             if (aqi >= 120) totalAdders += (baseValue * 0.03);
             else if (aqi >= 100) totalAdders += (baseValue * 0.02);
             else if (aqi >= 80) totalAdders += (baseValue * 0.01);
@@ -70,33 +72,35 @@
         return Math.round(baseValue + totalAdders);
     }
 
-    // 2. DATA FETCHING WITH PROXY
+    // 3. DATA FETCHING
     async function updateDashboard() {
         try {
-            // Fetching Quant-AQ (Ozone/NO2)
+            // Fetch Quant-AQ via Proxy to bypass CORS
             const qaUrl = encodeURIComponent(`https://api.quant-aq.com/v1/devices/MOD-PM-00632/data/?api_key=${QA_KEY}`);
             const qaResp = await fetch(PROXY + qaUrl);
             const qaJson = await qaResp.json();
-            const qaData = JSON.parse(qaJson.contents).data[0]; // Accessing nested proxy content
+            
+            // Fix: Parse nested contents from proxy
+            const qaData = JSON.parse(qaJson.contents).data[0];
 
-            // Fetching Black Carbon (COMET)
+            // Fetch Black Carbon (COMET)
             const cometUrl = encodeURIComponent(`https://grovestreams.com/api/v1/data/values?api_key=${COMET_KEY}&itemUid=b23f4615-846f-3426-9231-4a73bc94a40b`);
             const bcResp = await fetch(PROXY + cometUrl);
             const bcJson = await bcResp.json();
             const bcVal = JSON.parse(bcJson.contents)[0].value;
 
-            // Individual AQIs (Insert specific conversion formulas here)
-            const aqiValues = {
-                pm25: 105, // Placeholder for PurpleAir 24hr Base
+            // Mapping raw data to AQIs (Placeholder values for PM2.5 and Ozone)
+            const currentAQIs = {
+                pm25: 105, // Replace with live PurpleAir calculation
                 o3: 82,    // Mapped from Quant-AQ
                 bc: 45     // Mapped from COMET data
             };
 
-            const ceAQI = calculateCEAQI(aqiValues);
-            document.getElementById('aqiDisplay').innerText = ceAQI;
-            updateUI(ceAQI);
+            const finalScore = calculateCEAQI(currentAQIs);
+            document.getElementById('aqiDisplay').innerText = finalScore;
+            updateUI(finalScore);
         } catch (err) {
-            console.error(err);
+            console.error("Dashboard Error:", err);
             document.getElementById('statusText').innerText = "DATA ERROR";
         }
     }
@@ -104,15 +108,19 @@
     function updateUI(aqi) {
         const card = document.getElementById('aqiCard');
         const text = document.getElementById('statusText');
+        // Standard AQI Color Coding
         if (aqi <= 50) { card.style.borderTopColor = "#00e400"; text.innerText = "GOOD"; }
         else if (aqi <= 100) { card.style.borderTopColor = "#ffff00"; text.innerText = "MODERATE"; }
         else if (aqi <= 150) { card.style.borderTopColor = "#ff7e00"; text.innerText = "SENSITIVE"; }
         else { card.style.borderTopColor = "#ff0000"; text.innerText = "UNHEALTHY"; }
     }
 
+    // Initialize Map
     const map = L.map('map').setView([38.923, -76.915], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    
     updateDashboard();
+    setInterval(updateDashboard, 300000); // Refresh every 5 minutes
 </script>
 </body>
 </html>
