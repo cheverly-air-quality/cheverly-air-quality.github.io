@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>EJAT Air Quality Network</title>
+  <title>EJAT Air Quality Dashboard</title>
   
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -27,7 +27,7 @@
     
     .aqi-val { font-size: 72px; font-weight: 900; display: block; text-align: center; line-height: 1.1; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
     
-    /* STUBBORN BOTTOM LEFT LEGEND */
+    /* THE LEGEND (Bottom Left Fixed) */
     #fixed-legend {
       position: absolute; bottom: 20px; left: 20px; 
       background: white; padding: 10px; border-radius: 5px; 
@@ -123,7 +123,7 @@
       if (data.length > 0) {
         const uLat = parseFloat(data[0].lat), uLon = parseFloat(data[0].lon);
         map.setView([uLat, uLon], 16);
-        L.circle([uLat, uLon], {radius: 50, color: 'blue'}).addTo(map);
+        L.circle([uLat, uLon], {radius: 40, color: 'blue', fillOpacity: 0.2}).addTo(map);
         
         let nearestId = null, minDist = Infinity;
         for (let id in markerMap) {
@@ -137,8 +137,10 @@
 
   async function updateDisplay(id) {
     if (id.startsWith("MOD")) {
-      document.getElementById('statName').innerText = id; document.getElementById('statAQI').innerText = "LIVE";
-      document.getElementById('statAQI').style.color = "var(--orange)"; return;
+      document.getElementById('statName').innerText = id; 
+      document.getElementById('statAQI').innerText = "LIVE";
+      document.getElementById('statAQI').style.color = "var(--orange)"; 
+      return;
     }
     const start = Math.floor(Date.now()/1000)-86400;
     const localUrl = `${PROXY}${encodeURIComponent(`https://api.purpleair.com/v1/sensors/${id}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`)}`;
@@ -151,7 +153,9 @@
       ]);
       const lData = (lRes.data || []).sort((a,b)=>a[0]-b[0]).map(r => ({ x: r[0]*1000, y: calculateCEAQI(r[1], id) }));
       const dData = (dRes.data || []).sort((a,b)=>a[0]-b[0]).map(r => ({ x: r[0]*1000, y: calculateCEAQI(r[1], DC_REF_ID) }));
-      chart.data.datasets[0].data = lData; chart.data.datasets[1].data = dData; chart.update();
+      chart.data.datasets[0].data = lData; 
+      chart.data.datasets[1].data = dData; 
+      chart.update();
       const aqi = lData.length > 0 ? lData[lData.length-1].y : 0;
       document.getElementById('statName').innerText = SENSORS[id];
       document.getElementById('statAQI').innerText = aqi;
@@ -163,29 +167,34 @@
 
   async function init() {
     const sel = document.getElementById('devSel');
+    
+    // 1. ADD SPODS
     SPODS.forEach(s => {
       const m = L.marker([s.lat, s.lon], {icon: L.divIcon({ className: 'spod', html: `<div class="tri"></div>`, iconAnchor: [8, 12] })}).addTo(map);
       markerMap[s.sn] = m; sel.add(new Option(s.name, s.sn));
       m.on('click', () => { sel.value = s.sn; handleDropdownChange(s.sn); });
     });
 
-    // FORCED FETCH: Fetch IDs specifically to ensure they appear
-    const idList = Object.keys(SENSORS).join(',');
-    const url = `${PROXY}${encodeURIComponent(`https://api.purpleair.com/v1/sensors?show_only=${idList}&fields=sensor_index,latitude,longitude,pm2.5_atm`)}`;
-    
-    try {
-      const res = await fetch(url, { headers: { "X-API-Key": PURPLE_AIR_KEY } }).then(r=>r.json());
-      res.data.forEach(r => {
-        const id = String(r[0]);
-        if (SENSORS[id] && !markerMap[id]) {
-          const aqi = calculateCEAQI(r[3], id);
-          const m = L.circleMarker([r[1], r[2]], { radius: 10, fillColor: getAQIColor(aqi), color: "#000", weight: 2, fillOpacity: 0.9 }).addTo(map);
-          markerMap[id] = m; sel.add(new Option(SENSORS[id], id));
+    // 2. FETCH PURPLE AIRS INDIVIDUALLY (To bypass API mass-fetch limits)
+    console.log("Starting individual sensor fetch...");
+    for (const id in SENSORS) {
+      const url = `${PROXY}${encodeURIComponent(`https://api.purpleair.com/v1/sensors/${id}?fields=latitude,longitude,pm2.5_atm`)}`;
+      try {
+        const res = await fetch(url, { headers: { "X-API-Key": PURPLE_AIR_KEY } }).then(r=>r.json());
+        if (res.sensor) {
+          const s = res.sensor;
+          const aqi = calculateCEAQI(s.pm2.5_atm, id);
+          const m = L.circleMarker([s.latitude, s.longitude], { 
+            radius: 10, fillColor: getAQIColor(aqi), color: "#000", weight: 2, fillOpacity: 0.9 
+          }).addTo(map);
+          markerMap[id] = m;
+          sel.add(new Option(SENSORS[id], id));
           m.on('click', () => { sel.value = id; handleDropdownChange(id); });
         }
-      });
-    } catch(e) { console.error(e); }
-    updateDisplay("203577");
+      } catch(e) { console.error(`Failed to load sensor ${id}`, e); }
+    }
+    
+    updateDisplay("203577"); // Default to Supersite
   }
   init();
 </script>
