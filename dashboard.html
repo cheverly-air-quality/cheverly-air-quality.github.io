@@ -1,128 +1,208 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EJAT Cheverly Air Quality</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <meta charset="UTF-8">
+    <title>EJAT Network - Live Data & Address Search</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 
-  <style>
-    :root { --navy: #1a305e; --blue: #4477ce; }
-    body { margin: 0; font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-    .topbar { background: var(--navy); color: white; padding: 15px 25px; display: flex; justify-content: space-between; }
-    #layout { display: flex; flex: 1; overflow: hidden; }
-    #sidebar { width: 350px; background: #f4f4f4; border-right: 1px solid #ccc; padding: 15px; overflow-y: auto; }
-    #main { flex: 1; display: flex; flex-direction: column; }
-    #map { height: 40%; width: 100%; border-bottom: 1px solid #ccc; }
-    #chart-box { flex: 1; padding: 15px; background: white; }
-    .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 15px; }
-    .aqi-num { font-size: 64px; font-weight: 800; text-align: center; display: block; }
-  </style>
+    <style>
+        :root { --navy: #1a305e; --blue: #4477ce; }
+        body { margin: 0; font-family: system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: #fff; }
+        .header { background: var(--navy); color: white; padding: 10px 20px; font-weight: bold; font-size: 1.1rem; display: flex; justify-content: space-between; }
+        #container { display: flex; flex: 1; min-height: 0; }
+        #sidebar { width: 320px; background: #f4f4f4; border-right: 1px solid #ccc; padding: 15px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; }
+        #content { flex: 1; display: flex; flex-direction: column; }
+        #map { height: 45%; border-bottom: 1px solid #ccc; }
+        #chart-container { flex: 1; padding: 15px; background: white; }
+        
+        /* Sidebar Components */
+        .card { background: white; padding: 12px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 1px solid #ddd; }
+        .stat-card { border-top: 4px solid var(--blue); text-align: center; }
+        .aqi-num { font-size: 44px; font-weight: 800; margin: 5px 0; }
+        
+        label { font-size: 0.7rem; font-weight: bold; color: #444; margin-bottom: 5px; display: block; text-transform: uppercase; }
+        input, select, button { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 0.9rem; }
+        button { background: var(--blue); color: white; border: none; font-weight: bold; cursor: pointer; margin-top: 8px; }
+        button:hover { background: #335fb3; }
+
+        /* Range Key Styling */
+        .legend { font-size: 0.7rem; line-height: 1.5; }
+        .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+        .dot { height: 10px; width: 10px; border-radius: 50%; border: 1px solid #999; display: inline-block; }
+
+        .leaflet-tooltip-own { background: #1a305e; color: white; border: 1px solid white; border-radius: 6px; padding: 8px; font-size: 11px; }
+    </style>
 </head>
 <body>
 
-<header class="topbar">
-  <div style="font-weight:bold; font-size:1.2rem;">Cheverly Air Quality</div>
-</header>
+<div class="header">
+    <span>Cheverly EJAT Network</span>
+    <span style="font-size:0.7rem; opacity:0.8;">Live Portal</span>
+</div>
 
-<div id="layout">
-  <aside id="sidebar">
-    <div class="card">
-      <label style="font-size:0.7rem; font-weight:bold; color:#666;">SELECT STATION</label>
-      <select id="devSel" style="width:100%; padding:10px; margin-top:5px;" onchange="updateDashboard(this.value)"></select>
-    </div>
-    <div class="card">
-      <label style="font-size:0.7rem; font-weight:bold; color:#666;">CURRENT READING</label>
-      <div id="statName" style="text-align:center; font-weight:bold; margin-top:10px;">Loading...</div>
-      <div id="statAQI" class="aqi-num" style="color:#ccc;">--</div>
-    </div>
-  </aside>
+<div id="container">
+    <aside id="sidebar">
+        <div class="card">
+            <label>Location Search</label>
+            <input type="text" id="addrInput" placeholder="Enter street or city...">
+            <button onclick="searchAddress()">Find Nearest Station</button>
+        </div>
 
-  <div id="main">
-    <div id="map"></div>
-    <div id="chart-box"><canvas id="airChart"></canvas></div>
-  </div>
+        <div class="card stat-card">
+            <div id="stationLabel" style="font-size: 0.7rem; font-weight: bold; color: #666;">SELECT A STATION</div>
+            <div id="aqiVal" class="aqi-num" style="color: #bbb;">--</div>
+            <div id="statusLabel" style="font-size: 0.7rem; font-weight: bold;">INITIALIZING...</div>
+        </div>
+
+        <div class="card">
+            <label>Station Registry</label>
+            <select id="stationSelect" onchange="updateStation(this.value)"></select>
+        </div>
+
+        <div class="card">
+            <label>PM2.5 Health Range (µg/m³)</label>
+            <div class="legend">
+                <div class="legend-item"><span class="dot" style="background:#00e400;"></span> <b>Good:</b> 0 - 12.0</div>
+                <div class="legend-item"><span class="dot" style="background:#ffff00;"></span> <b>Moderate:</b> 12.1 - 35.4</div>
+                <div class="legend-item"><span class="dot" style="background:#ff7e00;"></span> <b>Sensitive:</b> 35.5 - 55.4</div>
+                <div class="legend-item"><span class="dot" style="background:#ff0000;"></span> <b>Unhealthy:</b> 55.5+</div>
+            </div>
+            <p style="font-size: 0.6rem; color: #888; margin-top: 8px; font-style: italic;">
+                * Raw PM2.5 atmospheric data averaged hourly.
+            </p>
+        </div>
+    </aside>
+
+    <main id="content">
+        <div id="map"></div>
+        <div id="chart-container"><canvas id="aqiChart"></canvas></div>
+    </main>
 </div>
 
 <script>
-  const API_KEY = "9ADB5C6C-A9B0-11EF-A261-42010A80000F";
-  const PROXY = "https://api.allorigins.win/get?url=";
+    const KEY = "9ADB5C6C-A9B0-11EF-A261-42010A80000F";
+    const DC_AVG_ID = "175563";
+    const STATIONS = { "284362": "EJAT.PG.1.284362", "52823": "EJAT.CV.6.52823", "53677": "EJAT.CV.1.53677", "54239": "EJAT.CV.6.54239", "54293": "EJAT.CV.2.54293", "57777": "EJAT.CV.1.57777", "57783": "EJAT.CV.6.57783", "57811": "EJAT.CV.4.57811", "57841": "EJAT.CV.3.57841", "57955": "EJAT.FH.1.57955", "160037": "EJAT.PG.1.160037", "175563": "EJAT.PG.1.175563", "178169": "EJAT.PG.1.178169", "181253": "EJAT.CH.1.181253", "184191": "EJAT.PG.1.184191", "185085": "EJAT.FH.1.185085", "197937": "EJAT.PG.1.197937", "203577": "EJAT.CV.2.203577", "203597": "EJAT.FH.1.203597", "203601": "EJAT.CV.1.203601", "207729": "EJAT.CV.1.207729", "211993": "EJAT.CV.3.211993", "218227": "EJAT.PG.1.218227", "218237": "EJAT.PG.1.218237", "218273": "EJAT.PG.1.218273" };
 
-  const SENSORS = {
-    "203577": "EJAT.CV.2.203577 (Supersite)",
-    "284362": "EJAT.PG.1.284362",
-    "178169": "EJAT.PG.1.178169",
-    "53677": "EJAT.CV.1.53677"
-  };
-
-  const map = L.map('map').setView([38.922, -76.915], 14);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-  const ctx = document.getElementById('airChart').getContext('2d');
-  const chart = new Chart(ctx, {
-    type: 'line',
-    data: { datasets: [{ label: 'AQI (24h)', data: [], borderColor: '#4477ce', tension: 0.1 }] },
-    options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time' } } }
-  });
-
-  function pmToAQI(pm) {
-    if (!pm) return 0;
-    if (pm <= 12) return Math.round(4.16 * pm);
-    if (pm <= 35.4) return Math.round(2.1 * (pm - 12.1) + 51);
-    return Math.round(pm + 100);
-  }
-
-  async function updateDashboard(id) {
-    const start = Math.floor(Date.now()/1000) - 86400;
-    // We put the API_KEY in the URL to bypass the CORS header block
-    const target = `https://api.purpleair.com/v1/sensors/${id}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}&api_key=${API_KEY}`;
+    const map = L.map('map').setView([38.923, -76.915], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     
-    try {
-      const res = await fetch(`${PROXY}${encodeURIComponent(target)}`);
-      const data = await res.json();
-      if (!data.contents) throw new Error("Proxy error");
-      
-      const json = JSON.parse(data.contents);
-      const history = (json.data || []).map(r => ({ x: r[0]*1000, y: pmToAQI(r[1]) })).sort((a,b)=>a.x-b.x);
-      
-      chart.data.datasets[0].data = history;
-      chart.update();
+    let markers = {};
+    let userMarker = null;
 
-      const latest = history.length > 0 ? history[history.length-1].y : "--";
-      document.getElementById('statAQI').innerText = latest;
-      document.getElementById('statAQI').style.color = latest > 100 ? "red" : (latest > 50 ? "orange" : "green");
-      document.getElementById('statName').innerText = SENSORS[id];
-    } catch(e) {
-      console.error(e);
-      document.getElementById('statAQI').innerText = "ERR";
-    }
-  }
+    const chart = new Chart(document.getElementById('aqiChart'), {
+        type: 'line',
+        data: { datasets: [
+            { label: 'Local Station', data: [], borderColor: '#4477ce', backgroundColor: 'rgba(68,119,206,0.1)', fill: true, tension: 0.3 },
+            { label: 'DC Baseline', data: [], borderColor: 'red', borderDash: [5,5], fill: false, tension: 0.3 }
+        ]},
+        options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time' }, y: { beginAtZero: true } } }
+    });
 
-  async function init() {
-    const sel = document.getElementById('devSel');
-    // Load station list with key in URL to avoid the "Header not allowed" error
-    const listUrl = `https://api.purpleair.com/v1/sensors?nwlng=-77.1&nwlat=39.0&selng=-76.8&selat=38.8&fields=latitude,longitude&api_key=${API_KEY}`;
-    
-    try {
-      const res = await fetch(`${PROXY}${encodeURIComponent(listUrl)}`);
-      const data = await res.json();
-      const json = JSON.parse(data.contents);
-      
-      json.data.forEach(r => {
-        const id = String(r[0]);
-        if (SENSORS[id]) {
-          L.circleMarker([r[1], r[2]], { radius: 8, color: 'blue' }).addTo(map).bindPopup(SENSORS[id]);
-          sel.add(new Option(SENSORS[id], id));
+    // Multi-Proxy strategy to bypass GitHub blocks
+    async function safeFetch(url) {
+        const fullUrl = url + (url.includes('?') ? '&' : '?') + 'api_key=' + KEY;
+        const sources = [
+            fullUrl, 
+            `https://api.allorigins.win/get?url=${encodeURIComponent(fullUrl)}`,
+            `https://corsproxy.io/?${encodeURIComponent(fullUrl)}`
+        ];
+        for (let src of sources) {
+            try {
+                const r = await fetch(src);
+                if (!r.ok) continue;
+                const j = await r.json();
+                return j.contents ? JSON.parse(j.contents) : j;
+            } catch (e) { console.warn("Trying next proxy..."); }
         }
-      });
-      updateDashboard("203577");
-    } catch(e) { console.error("Initialization failed", e); }
-  }
+        return null;
+    }
 
-  init();
+    function calcAQI(pm) {
+        if (!pm || pm < 0) return 0;
+        return pm <= 12 ? Math.round(pm * 4.16) : pm <= 35.4 ? Math.round(2.1 * (pm - 12) + 51) : Math.round(pm + 100);
+    }
+
+    async function searchAddress() {
+        const addr = document.getElementById('addrInput').value;
+        if (!addr) return;
+        try {
+            const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr)}`);
+            const res = await r.json();
+            if (res.length > 0) {
+                const lat = parseFloat(res[0].lat);
+                const lon = parseFloat(res[0].lon);
+                if (userMarker) map.removeLayer(userMarker);
+                userMarker = L.marker([lat, lon]).addTo(map).bindPopup("<b>Your Location</b>").openPopup();
+                
+                let nearestId = null, minDist = Infinity;
+                for (let id in markers) {
+                    const d = map.distance([lat, lon], markers[id].getLatLng());
+                    if (d < minDist) { minDist = d; nearestId = id; }
+                }
+                if (nearestId) {
+                    document.getElementById('stationSelect').value = nearestId;
+                    updateStation(nearestId);
+                }
+            } else { alert("Address not found. Please try a more specific location."); }
+        } catch (e) { console.error("Search failed", e); }
+    }
+
+    async function updateStation(id) {
+        document.getElementById('statusLabel').innerText = "FETCHING...";
+        const start = Math.floor(Date.now() / 1000) - 86400;
+        const [loc, dc] = await Promise.all([
+            safeFetch(`https://api.purpleair.com/v1/sensors/${id}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`),
+            safeFetch(`https://api.purpleair.com/v1/sensors/${DC_AVG_ID}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`)
+        ]);
+
+        const process = (d) => (d?.data || []).map(r => ({ x: r[0]*1000, y: calcAQI(r[1]) })).sort((a,b) => a.x - b.x);
+        const locPoints = process(loc);
+        chart.data.datasets[0].data = locPoints;
+        chart.data.datasets[1].data = process(dc);
+        
+        if (locPoints.length > 0) {
+            const latest = locPoints[locPoints.length - 1].y;
+            const display = document.getElementById('aqiVal');
+            display.innerText = latest;
+            display.style.color = latest <= 50 ? "#00e400" : latest <= 100 ? "#e5e500" : "#ff7e00";
+            document.getElementById('stationLabel').innerText = STATIONS[id] || id;
+            document.getElementById('statusLabel').innerText = "LIVE DATA ACTIVE";
+        } else {
+            document.getElementById('statusLabel').innerText = "STATION OFFLINE";
+            document.getElementById('aqiVal').innerText = "??";
+        }
+        chart.update();
+        if (markers[id]) map.flyTo(markers[id].getLatLng(), 15);
+    }
+
+    async function init() {
+        const sel = document.getElementById('stationSelect');
+        const data = await safeFetch("https://api.purpleair.com/v1/sensors?nwlng=-77.15&nwlat=39.05&selng=-76.75&selat=38.75&fields=sensor_index,latitude,longitude,pm2.5_atm");
+        
+        if (data?.data) {
+            data.data.forEach(r => {
+                const id = String(r[0]);
+                const rawPM = r[3] || 0;
+                const curAQI = calcAQI(rawPM);
+                if (STATIONS[id]) {
+                    const m = L.circleMarker([r[1], r[2]], { radius: 10, fillColor: curAQI <= 50 ? "#00e400" : "#ffff00", color: "#000", weight: 1.5, fillOpacity: 0.9 }).addTo(map);
+                    m.bindTooltip(`<b>${STATIONS[id]}</b><br>AQI: ${curAQI}<br>PM2.5: ${rawPM.toFixed(1)}`, { className: 'leaflet-tooltip-own' });
+                    markers[id] = m;
+                    sel.add(new Option(STATIONS[id], id));
+                    m.on('click', () => { sel.value = id; updateStation(id); });
+                }
+            });
+            updateStation("203577");
+        } else {
+            document.getElementById('statusLabel').innerText = "CONNECTION ERROR";
+        }
+    }
+    init();
 </script>
 </body>
 </html>
