@@ -24,13 +24,25 @@
     #main-content { flex: 1; display: flex; flex-direction: column; height: 100%; position: relative; }
     #map { height: 45%; width: 100%; border-bottom: 1px solid #ddd; z-index: 1; }
     #chart-box { height: 55%; width: 100%; padding: 15px; box-sizing: border-box; background: white; }
-    .aqi-val { font-size: 72px; font-weight: 900; display: block; text-align: center; line-height: 1.1; text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000; }
+    
+    /* BLACK OUTLINE FOR AQI NUMBER */
+    .aqi-val { 
+      font-size: 72px; 
+      font-weight: 900; 
+      display: block; 
+      text-align: center; 
+      line-height: 1.1; 
+      -webkit-text-stroke: 2px black; /* Crisp black outline */
+      color: #ccc; 
+    }
+    
     .health-msg { margin-top: 10px; font-size: 0.8rem; padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 4px; }
     
-    .map-legend { background: white; padding: 10px; border-radius: 5px; border: 2px solid #ccc; line-height: 1.4; font-size: 11px; box-shadow: 0 0 10px rgba(0,0,0,0.15); }
-    .legend-item { display: flex; align-items: center; margin-bottom: 4px; font-weight: bold; }
-    .dot { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid #000; display: inline-block; }
-    .tri { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 12px solid var(--orange); margin-right: 8px; }
+    /* SIDEBAR LEGEND STYLES */
+    .sidebar-legend { margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; }
+    .legend-item { display: flex; align-items: center; margin-bottom: 6px; font-size: 0.85rem; font-weight: 600; color: #444; }
+    .dot { width: 14px; height: 14px; border-radius: 50%; margin-right: 10px; border: 1px solid #000; display: inline-block; }
+    .tri { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 12px solid var(--orange); margin-right: 10px; }
   </style>
 </head>
 <body>
@@ -48,8 +60,18 @@
       <label>Live Station Reading</label>
       <div id="details" style="text-align:center;">
         <div id="statName" style="font-weight:bold; font-size:0.9rem; margin-bottom:5px;">--</div>
-        <div id="statAQI" class="aqi-val" style="color:#ccc;">--</div>
-        <div style="font-size:0.75rem; color:#666; font-weight: bold;">CUMULATIVE CE-AQI</div>
+        <div id="statAQI" class="aqi-val">--</div>
+        <div style="font-size:0.75rem; color:#666; font-weight: bold; margin-bottom: 10px;">CUMULATIVE CE-AQI</div>
+        
+        <div class="sidebar-legend">
+          <label style="margin-bottom: 8px;">AQI Scale Key</label>
+          <div class="legend-item"><span class="dot" style="background:#00e400"></span> Good (0-50)</div>
+          <div class="legend-item"><span class="dot" style="background:#ffff00"></span> Moderate (51-100)</div>
+          <div class="legend-item"><span class="dot" style="background:#ff7e00"></span> Sensitive (101-150)</div>
+          <div class="legend-item"><span class="dot" style="background:#ff0000"></span> Unhealthy (151+)</div>
+          <div class="legend-item"><span class="tri"></span> SPOD Gas Sensor</div>
+        </div>
+
         <div id="healthAdvice" class="health-msg" style="display:none;"></div>
       </div>
     </div>
@@ -82,19 +104,6 @@
   let markerMap = {};
   const map = L.map('map').setView([38.922, -76.915], 14);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-  const legend = L.control({position: 'bottomleft'});
-  legend.onAdd = function() {
-    const div = L.DomUtil.create('div', 'map-legend');
-    div.innerHTML = `
-      <div class="legend-item"><span class="dot" style="background:#00e400"></span> Good (0-50)</div>
-      <div class="legend-item"><span class="dot" style="background:#ffff00"></span> Moderate (51-100)</div>
-      <div class="legend-item"><span class="dot" style="background:#ff7e00"></span> Sensitive (101-150)</div>
-      <div class="legend-item"><span class="dot" style="background:#ff0000"></span> Unhealthy (151+)</div>
-      <div class="legend-item"><span class="tri"></span> SPOD Gas Sensor</div>`;
-    return div;
-  };
-  legend.addTo(map);
 
   const chart = new Chart(document.getElementById('airChart').getContext('2d'), {
     type: 'line',
@@ -166,14 +175,12 @@
 
   async function init() {
     const sel = document.getElementById('devSel');
-    // ADD SPODS FIRST
     SPODS.forEach(s => {
       const m = L.marker([s.lat, s.lon], {icon: L.divIcon({ className: 'spod', html: `<div class="tri"></div>`, iconAnchor: [8, 12] })}).addTo(map);
       markerMap[s.sn] = m; sel.add(new Option(s.name, s.sn));
       m.on('click', () => { sel.value = s.sn; handleDropdownChange(s.sn); });
     });
 
-    // PULL PURPLE AIR SENSORS (Widened Box)
     const url = `${PROXY}${encodeURIComponent("https://api.purpleair.com/v1/sensors?nwlng=-77.15&nwlat=39.05&selng=-76.75&selat=38.75&fields=sensor_index,latitude,longitude,pm2.5_atm")}`;
     try {
       const res = await fetch(url, { headers: { "X-API-Key": PURPLE_AIR_KEY } }).then(r=>r.json());
