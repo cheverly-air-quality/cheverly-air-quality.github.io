@@ -25,19 +25,17 @@
     #map { height: 45%; width: 100%; border-bottom: 1px solid #ddd; z-index: 1; }
     #chart-box { height: 55%; width: 100%; padding: 15px; box-sizing: border-box; background: white; }
     
-    /* ADDED: THE BLACK OUTLINE STYLE */
     .aqi-val { 
       font-size: 72px; 
       font-weight: 900; 
       display: block; 
       text-align: center; 
       line-height: 1.1; 
-      text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000; /* Bold black outline */
+      text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000;
     }
     
     .health-msg { margin-top: 10px; font-size: 0.8rem; padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 4px; }
     
-    /* ADDED: SIDEBAR LEGEND STYLES */
     .sidebar-legend { margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; text-align: left; }
     .legend-item { display: flex; align-items: center; margin-bottom: 5px; font-weight: bold; font-size: 11px; }
     .dot { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid #000; display: inline-block; }
@@ -78,7 +76,6 @@
 </div>
 
 <script>
-  // EXACT DATA LOGIC FROM YOUR WORKING VERSION
   const PURPLE_AIR_KEY = "9ADB5C6C-A9B0-11EF-A261-42010A80000F";
   const PROXY = "https://corsproxy.io/?"; 
   const DC_REF_ID = "175563"; 
@@ -101,6 +98,8 @@
   ];
 
   let markerMap = {};
+  let searchPin = null; // Variable to hold the address pin
+
   const map = L.map('map').setView([38.922, -76.915], 14);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
@@ -133,7 +132,13 @@
       const data = await resp.json();
       if (data.length > 0) {
         const uLat = parseFloat(data[0].lat), uLon = parseFloat(data[0].lon);
-        map.setView([uLat, uLon], 16);
+        
+        // Remove old pin if it exists, then add a new one
+        if (searchPin) map.removeLayer(searchPin);
+        searchPin = L.marker([uLat, uLon]).addTo(map).bindPopup("Your Search Location").openPopup();
+        
+        map.flyTo([uLat, uLon], 16);
+
         let nearestId = null, minDist = Infinity;
         for (let id in markerMap) {
           let d = map.distance([uLat, uLon], markerMap[id].getLatLng());
