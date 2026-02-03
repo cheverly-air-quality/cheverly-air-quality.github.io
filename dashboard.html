@@ -32,14 +32,14 @@
       text-align: center; 
       line-height: 1.1; 
       text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000;
+      color: #ccc;
     }
-    
-    .health-msg { margin-top: 10px; font-size: 0.8rem; padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 4px; }
     
     .sidebar-legend { margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; text-align: left; }
     .legend-item { display: flex; align-items: center; margin-bottom: 5px; font-weight: bold; font-size: 11px; }
     .dot { width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; border: 1px solid #000; display: inline-block; }
     .tri { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-bottom: 12px solid var(--orange); margin-right: 8px; }
+    .health-msg { margin-top: 10px; font-size: 0.8rem; padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 4px; }
   </style>
 </head>
 <body>
@@ -53,11 +53,11 @@
   <aside id="sidebar">
     <div class="card"><label>Location Search</label><input type="text" id="addrInput" placeholder="Enter address..."><button onclick="findAddress()">Find Nearest Station</button></div>
     <div class="card"><label>Station Index</label><select id="devSel" onchange="handleDropdownChange(this.value)"></select></div>
-    <div class="card" style="min-height: 150px;">
+    <div class="card">
       <label>Live Station Reading</label>
       <div id="details" style="text-align:center;">
         <div id="statName" style="font-weight:bold; font-size:0.9rem; margin-bottom:5px;">--</div>
-        <div id="statAQI" class="aqi-val" style="color:#ccc;">--</div>
+        <div id="statAQI" class="aqi-val">--</div>
         <div style="font-size:0.75rem; color:#666; font-weight: bold;">CUMULATIVE CE-AQI</div>
 
         <div class="sidebar-legend">
@@ -66,6 +66,7 @@
           <div class="legend-item"><span class="dot" style="background:#ff7e00"></span> Sensitive (101-150)</div>
           <div class="legend-item"><span class="dot" style="background:#ff0000"></span> Unhealthy (151+)</div>
           <div class="legend-item"><span class="tri"></span> SPOD Gas Sensor</div>
+          <div class="legend-item"><span class="dot" style="background:#fff; border: 3px solid red; width: 10px; height: 10px;"></span> Your Search Location</div>
         </div>
 
         <div id="healthAdvice" class="health-msg" style="display:none;"></div>
@@ -98,7 +99,7 @@
   ];
 
   let markerMap = {};
-  let searchPin = null; // Variable to hold the address pin
+  let searchPin = null;
 
   const map = L.map('map').setView([38.922, -76.915], 14);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
@@ -133,9 +134,11 @@
       if (data.length > 0) {
         const uLat = parseFloat(data[0].lat), uLon = parseFloat(data[0].lon);
         
-        // Remove old pin if it exists, then add a new one
+        // Remove old pin and add a distinct red circle for the searched address
         if (searchPin) map.removeLayer(searchPin);
-        searchPin = L.marker([uLat, uLon]).addTo(map).bindPopup("Your Search Location").openPopup();
+        searchPin = L.circleMarker([uLat, uLon], {
+          radius: 12, fillColor: "#fff", color: "red", weight: 4, fillOpacity: 1
+        }).addTo(map).bindPopup("<b>Searched Location</b>").openPopup();
         
         map.flyTo([uLat, uLon], 16);
 
@@ -172,7 +175,10 @@
       document.getElementById('statAQI').style.color = getAQIColor(aqi);
       const adv = document.getElementById('healthAdvice'); adv.style.display = "block";
       adv.innerHTML = aqi > 150 ? "<b>ALERT:</b> Unhealthy." : aqi > 100 ? "<b>CAUTION:</b> Sensitive Groups." : "Satisfactory.";
-    } catch(e) { console.log(e); }
+    } catch(e) { 
+        console.log(e); 
+        document.getElementById('statAQI').innerText = "N/A";
+    }
   }
 
   function handleDropdownChange(id) { if(markerMap[id]) { map.flyTo(markerMap[id].getLatLng(), 15); updateDisplay(id); } }
@@ -188,15 +194,17 @@
     const url = `${PROXY}${encodeURIComponent("https://api.purpleair.com/v1/sensors?nwlng=-77.15&nwlat=39.05&selng=-76.75&selat=38.75&fields=sensor_index,latitude,longitude,pm2.5_atm")}`;
     try {
       const res = await fetch(url, { headers: { "X-API-Key": PURPLE_AIR_KEY } }).then(r=>r.json());
-      res.data.forEach(r => {
-        const id = String(r[0]);
-        if (SENSORS[id] && !markerMap[id]) {
-          const aqi = calculateCEAQI(r[3], id);
-          const m = L.circleMarker([r[1], r[2]], { radius: 10, fillColor: getAQIColor(aqi), color: "#000", weight: 2, fillOpacity: 0.9 }).addTo(map);
-          markerMap[id] = m; sel.add(new Option(SENSORS[id], id));
-          m.on('click', () => { sel.value = id; handleDropdownChange(id); });
-        }
-      });
+      if (res.data) {
+        res.data.forEach(r => {
+          const id = String(r[0]);
+          if (SENSORS[id] && !markerMap[id]) {
+            const aqi = calculateCEAQI(r[3], id);
+            const m = L.circleMarker([r[1], r[2]], { radius: 10, fillColor: getAQIColor(aqi), color: "#000", weight: 2, fillOpacity: 0.9 }).addTo(map);
+            markerMap[id] = m; sel.add(new Option(SENSORS[id], id));
+            m.on('click', () => { sel.value = id; handleDropdownChange(id); });
+          }
+        });
+      }
     } catch(e) { console.error("Map pull failed", e); }
     updateDisplay("203577");
   }
