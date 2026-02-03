@@ -49,7 +49,8 @@
 
 <script>
   const PURPLE_AIR_KEY = "9ADB5C6C-A9B0-11EF-A261-42010A80000F";
-  const PROXY = "https://corsproxy.io/?"; 
+  // CHANGED PROXY to AllOrigins to bypass 403 blocks
+  const PROXY = "https://api.allorigins.win/get?url="; 
   const DC_REF_ID = "175563"; 
 
   const SENSORS = {
@@ -112,7 +113,10 @@
     const dUrl = PROXY + encodeURIComponent("https://api.purpleair.com/v1/sensors/" + DC_REF_ID + "/history?api_key=" + PURPLE_AIR_KEY + "&fields=pm2.5_atm&average=60&start_timestamp=" + start);
 
     try {
-      const [lRes, dRes] = await Promise.all([fetch(lUrl).then(r=>r.json()), fetch(dUrl).then(r=>r.json())]);
+      const [lResRaw, dResRaw] = await Promise.all([fetch(lUrl).then(r=>r.json()), fetch(dUrl).then(r=>r.json())]);
+      const lRes = JSON.parse(lResRaw.contents);
+      const dRes = JSON.parse(dResRaw.contents);
+      
       if (lRes.data && dRes.data) {
         const lData = lRes.data.sort((a,b)=>a[0]-b[0]).map(r => ({ x: r[0]*1000, y: calculateCEAQI(r[1], id) }));
         const dData = dRes.data.sort((a,b)=>a[0]-b[0]).map(r => ({ x: r[0]*1000, y: calculateCEAQI(r[1], DC_REF_ID) }));
@@ -129,27 +133,27 @@
 
   async function init() {
     const sel = document.getElementById('devSel');
-    // ADD SPODS FIRST
     SPODS.forEach(s => {
       const m = L.marker([s.lat, s.lon], {icon: L.divIcon({ className: 'spod', html: '<div class="tri"></div>', iconAnchor: [8, 12] })}).addTo(map);
       markerMap[s.sn] = m; sel.add(new Option(s.name, s.sn));
       m.on('click', () => { sel.value = s.sn; handleDropdownChange(s.sn); });
     });
 
-    // PULL PURPLE AIRS ONE BY ONE
-    for (const id in SENSORS) {
-      const url = PROXY + encodeURIComponent("https://api.purpleair.com/v1/sensors/" + id + "?api_key=" + PURPLE_AIR_KEY + "&fields=latitude,longitude,pm2.5_atm");
-      try {
-        const res = await fetch(url).then(r=>r.json());
-        if (res.sensor) {
-          const s = res.sensor;
-          const aqi = calculateCEAQI(s.pm2.5_atm, id);
-          const m = L.circleMarker([s.latitude, s.longitude], { radius: 10, fillColor: getAQIColor(aqi), color: "#000", weight: 2, fillOpacity: 0.9 }).addTo(map);
+    const idList = Object.keys(SENSORS).join(',');
+    const url = PROXY + encodeURIComponent("https://api.purpleair.com/v1/sensors?api_key=" + PURPLE_AIR_KEY + "&show_only=" + idList + "&fields=latitude,longitude,pm2.5_atm");
+    
+    try {
+      const resRaw = await fetch(url).then(r=>r.json());
+      const res = JSON.parse(resRaw.contents);
+      if (res.data) {
+        res.data.forEach(r => {
+          const id = String(r[0]);
+          const m = L.circleMarker([r[1], r[2]], { radius: 10, fillColor: getAQIColor(calculateCEAQI(r[3], id)), color: "#000", weight: 2, fillOpacity: 0.9 }).addTo(map);
           markerMap[id] = m; sel.add(new Option(SENSORS[id], id));
           m.on('click', () => { sel.value = id; handleDropdownChange(id); });
-        }
-      } catch(e) { console.warn("Skipped sensor " + id); }
-    }
+        });
+      }
+    } catch(e) { console.error("Load fail", e); }
     updateDisplay("203577");
   }
 
