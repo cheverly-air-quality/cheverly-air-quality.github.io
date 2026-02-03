@@ -2,134 +2,124 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>EJAT Air Quality Network</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EJAT Cheverly Air Quality</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 
   <style>
-    :root { --brand-navy: #1a305e; --search-blue: #4477ce; --orange: #f59e0b; }
-    html, body { margin: 0; padding: 0; height: 100%; width: 100%; font-family: "Segoe UI", sans-serif; overflow: hidden; background: #fdfdfd; }
-    .topbar { background: var(--brand-navy); color: white; padding: 0 25px; display: flex; justify-content: space-between; align-items: center; height: 60px; z-index: 2000; }
-    .brand { font-size: 1.2rem; font-weight: bold; }
-    .nav a { color: white; text-decoration: none; margin-left: 20px; font-size: 0.9rem; opacity: 0.8; }
-    #layout { display: flex; height: calc(100vh - 60px); width: 100vw; }
-    #sidebar { width: 380px; background: #f4f6f8; border-right: 1px solid #ddd; padding: 15px; overflow-y: auto; box-sizing: border-box; }
-    .card { background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 12px; }
-    label { font-size: 0.7rem; font-weight: bold; color: #666; text-transform: uppercase; display: block; }
-    select { width: 100%; padding: 10px; margin-top: 5px; border-radius: 4px; border: 1px solid #ccc; }
-    #main-content { flex: 1; display: flex; flex-direction: column; height: 100%; }
-    #map { height: 45%; width: 100%; border-bottom: 1px solid #ddd; }
-    #chart-box { height: 55%; width: 100%; padding: 15px; box-sizing: border-box; background: white; }
-    .aqi-val { font-size: 72px; font-weight: 900; display: block; text-align: center; line-height: 1.1; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
+    :root { --navy: #1a305e; --blue: #4477ce; }
+    body { margin: 0; font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    .topbar { background: var(--navy); color: white; padding: 15px 25px; display: flex; justify-content: space-between; }
+    #layout { display: flex; flex: 1; overflow: hidden; }
+    #sidebar { width: 350px; background: #f4f4f4; border-right: 1px solid #ccc; padding: 15px; overflow-y: auto; }
+    #main { flex: 1; display: flex; flex-direction: column; }
+    #map { height: 40%; width: 100%; border-bottom: 1px solid #ccc; }
+    #chart-box { flex: 1; padding: 15px; background: white; }
+    .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 15px; }
+    .aqi-num { font-size: 64px; font-weight: 800; text-align: center; display: block; }
   </style>
 </head>
 <body>
 
 <header class="topbar">
-  <div class="brand">Cheverly Air Quality</div>
-  <nav class="nav">
-    <a href="index.html">Home</a>
-    <a href="dashboard.html" style="font-weight:bold; opacity:1;">Dashboard</a>
-  </nav>
+  <div style="font-weight:bold; font-size:1.2rem;">Cheverly Air Quality</div>
 </header>
 
 <div id="layout">
   <aside id="sidebar">
     <div class="card">
-      <label>Station Index</label>
-      <select id="devSel" onchange="handleDropdownChange(this.value)"></select>
+      <label style="font-size:0.7rem; font-weight:bold; color:#666;">SELECT STATION</label>
+      <select id="devSel" style="width:100%; padding:10px; margin-top:5px;" onchange="updateDashboard(this.value)"></select>
     </div>
-    <div class="card" style="min-height: 150px;">
-      <label>Live Station Reading</label>
-      <div id="details" style="text-align:center;">
-        <div id="statName" style="font-weight:bold; font-size:0.9rem; margin-bottom:5px; color:#333;">INITIALIZING...</div>
-        <div id="statAQI" class="aqi-val" style="color:#ccc;">--</div>
-        <div style="font-size:0.75rem; color:#666; font-weight: bold; margin-top:5px;">CURRENT AQI</div>
-      </div>
+    <div class="card">
+      <label style="font-size:0.7rem; font-weight:bold; color:#666;">CURRENT READING</label>
+      <div id="statName" style="text-align:center; font-weight:bold; margin-top:10px;">Loading...</div>
+      <div id="statAQI" class="aqi-num" style="color:#ccc;">--</div>
     </div>
   </aside>
 
-  <div id="main-content">
+  <div id="main">
     <div id="map"></div>
     <div id="chart-box"><canvas id="airChart"></canvas></div>
   </div>
 </div>
 
 <script>
-  const PURPLE_AIR_KEY = "9ADB5C6C-A9B0-11EF-A261-42010A80000F";
-  // Using a direct proxy approach to avoid the header preflight issues seen in your console
+  const API_KEY = "9ADB5C6C-A9B0-11EF-A261-42010A80000F";
   const PROXY = "https://api.allorigins.win/get?url=";
 
   const SENSORS = {
-    "284362": "EJAT.PG.1.284362", "52823": "EJAT.CV.6.52823", "53677": "EJAT.CV.1.53677",
-    "178169": "EJAT.PG.1.178169", "203577": "EJAT.CV.2.203577 (Supersite)"
+    "203577": "EJAT.CV.2.203577 (Supersite)",
+    "284362": "EJAT.PG.1.284362",
+    "178169": "EJAT.PG.1.178169",
+    "53677": "EJAT.CV.1.53677"
   };
 
-  let markerMap = {};
   const map = L.map('map').setView([38.922, -76.915], 14);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-  const chart = new Chart(document.getElementById('airChart').getContext('2d'), {
+  const ctx = document.getElementById('airChart').getContext('2d');
+  const chart = new Chart(ctx, {
     type: 'line',
-    data: { datasets: [{ label: 'Station AQI', data: [], borderColor: '#4477ce', tension: 0.1, fill: true, backgroundColor: 'rgba(68, 119, 206, 0.1)' }]},
-    options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time' }, y: { beginAtZero: true } } }
+    data: { datasets: [{ label: 'AQI (24h)', data: [], borderColor: '#4477ce', tension: 0.1 }] },
+    options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time' } } }
   });
 
   function pmToAQI(pm) {
-    if (!pm || pm < 0) return 0;
-    if (pm <= 12.0) return Math.round(4.16 * pm);
+    if (!pm) return 0;
+    if (pm <= 12) return Math.round(4.16 * pm);
     if (pm <= 35.4) return Math.round(2.1 * (pm - 12.1) + 51);
     return Math.round(pm + 100);
   }
 
-  async function updateDisplay(id) {
-    const start = Math.floor(Date.now()/1000)-86400;
-    // We add the API_KEY as a query param to avoid preflight CORS errors
-    const target = `https://api.purpleair.com/v1/sensors/${id}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}&api_key=${PURPLE_AIR_KEY}`;
+  async function updateDashboard(id) {
+    const start = Math.floor(Date.now()/1000) - 86400;
+    // We put the API_KEY in the URL to bypass the CORS header block
+    const target = `https://api.purpleair.com/v1/sensors/${id}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}&api_key=${API_KEY}`;
     
     try {
       const res = await fetch(`${PROXY}${encodeURIComponent(target)}`);
-      const wrapped = await res.json();
-      const json = JSON.parse(wrapped.contents);
+      const data = await res.json();
+      if (!data.contents) throw new Error("Proxy error");
       
-      const localData = (json.data || []).sort((a,b)=>a[0]-b[0]).map(r => ({ x: r[0]*1000, y: pmToAQI(r[1]) }));
-      chart.data.datasets[0].data = localData;
+      const json = JSON.parse(data.contents);
+      const history = (json.data || []).map(r => ({ x: r[0]*1000, y: pmToAQI(r[1]) })).sort((a,b)=>a.x-b.x);
+      
+      chart.data.datasets[0].data = history;
       chart.update();
 
-      const aqi = localData.length > 0 ? localData[localData.length-1].y : 0;
+      const latest = history.length > 0 ? history[history.length-1].y : "--";
+      document.getElementById('statAQI').innerText = latest;
+      document.getElementById('statAQI').style.color = latest > 100 ? "red" : (latest > 50 ? "orange" : "green");
       document.getElementById('statName').innerText = SENSORS[id];
-      document.getElementById('statAQI').innerText = aqi;
-      document.getElementById('statAQI').style.color = aqi > 100 ? "#ff0000" : (aqi > 50 ? "#ffff00" : "#00e400");
-    } catch(e) { 
-      console.error("Fetch failed", e);
-      document.getElementById('statName').innerText = "DATA ERROR"; 
+    } catch(e) {
+      console.error(e);
+      document.getElementById('statAQI').innerText = "ERR";
     }
   }
 
-  function handleDropdownChange(id) { updateDisplay(id); }
-
   async function init() {
     const sel = document.getElementById('devSel');
-    const targetMap = `https://api.purpleair.com/v1/sensors?nwlng=-77.1&nwlat=39.0&selng=-76.8&selat=38.8&fields=pm2.5_atm&api_key=${PURPLE_AIR_KEY}`;
+    // Load station list with key in URL to avoid the "Header not allowed" error
+    const listUrl = `https://api.purpleair.com/v1/sensors?nwlng=-77.1&nwlat=39.0&selng=-76.8&selat=38.8&fields=latitude,longitude&api_key=${API_KEY}`;
     
     try {
-      const res = await fetch(`${PROXY}${encodeURIComponent(targetMap)}`);
-      const wrapped = await res.json();
-      const json = JSON.parse(wrapped.contents);
+      const res = await fetch(`${PROXY}${encodeURIComponent(listUrl)}`);
+      const data = await res.json();
+      const json = JSON.parse(data.contents);
       
       json.data.forEach(r => {
         const id = String(r[0]);
         if (SENSORS[id]) {
-          const aqi = pmToAQI(r[1]);
-          L.circleMarker([r[2] || 38.92, r[3] || -76.91], { radius: 10, fillColor: aqi > 50 ? 'orange' : 'green', color: '#000', weight: 1, fillOpacity: 0.8 }).addTo(map).bindTooltip(SENSORS[id]);
+          L.circleMarker([r[1], r[2]], { radius: 8, color: 'blue' }).addTo(map).bindPopup(SENSORS[id]);
           sel.add(new Option(SENSORS[id], id));
         }
       });
-    } catch(e) { console.error("Init failed", e); }
-    updateDisplay("203577");
+      updateDashboard("203577");
+    } catch(e) { console.error("Initialization failed", e); }
   }
 
   init();
