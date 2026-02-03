@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>EJAT Air Quality Network</title>
+  
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -20,14 +21,17 @@
     label { font-size: 0.7rem; font-weight: bold; color: #666; text-transform: uppercase; display: block; }
     input, select { width: 100%; padding: 10px; margin-top: 5px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
     button { width: 100%; padding: 12px; margin-top: 8px; border-radius: 4px; border: none; background: var(--search-blue); color: white; font-weight: bold; cursor: pointer; }
-    #main-content { flex: 1; display: flex; flex-direction: column; height: 100%; }
+    #main-content { flex: 1; display: flex; flex-direction: column; height: 100%; position: relative; }
     #map { height: 45%; width: 100%; border-bottom: 1px solid #ddd; z-index: 1; }
     #chart-box { height: 55%; width: 100%; padding: 15px; box-sizing: border-box; background: white; }
     .aqi-val { font-size: 72px; font-weight: 900; display: block; text-align: center; line-height: 1.1; text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000; }
     .health-msg { margin-top: 10px; font-size: 0.8rem; padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 4px; }
-    .legend-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 0.85rem; font-weight: 600; }
-    .dot { width: 18px; height: 18px; border-radius: 50%; margin-right: 12px; border: 2.5px solid #000; display: inline-block; }
-    .tri { width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 18px solid var(--orange); margin-right: 12px; filter: drop-shadow(0px 0px 1px #000); }
+    
+    /* Legend Styling */
+    .map-legend { background: white; padding: 10px; border-radius: 5px; border: 2px solid #ccc; line-height: 1.4; font-size: 12px; box-shadow: 0 0 15px rgba(0,0,0,0.2); }
+    .legend-item { display: flex; align-items: center; margin-bottom: 4px; font-weight: bold; }
+    .dot { width: 14px; height: 14px; border-radius: 50%; margin-right: 8px; border: 1px solid #000; display: inline-block; }
+    .tri { width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 14px solid var(--orange); margin-right: 8px; }
   </style>
 </head>
 <body>
@@ -39,7 +43,7 @@
 
 <div id="layout">
   <aside id="sidebar">
-    <div class="card"><label>Location Search</label><input type="text" id="addrInput" placeholder="Enter address..."><button id="locateBtn" onclick="findAddress()">Find Nearest Station</button></div>
+    <div class="card"><label>Location Search</label><input type="text" id="addrInput" placeholder="Enter address..."><button onclick="findAddress()">Find Nearest Station</button></div>
     <div class="card"><label>Station Index</label><select id="devSel" onchange="handleDropdownChange(this.value)"></select></div>
     <div class="card" style="min-height: 150px;">
       <label>Live Station Reading</label>
@@ -50,22 +54,17 @@
         <div id="healthAdvice" class="health-msg" style="display:none;"></div>
       </div>
     </div>
-    <div class="card">
-      <label>Network Legend</label>
-      <div class="legend-item"><span class="dot" style="background:#00e400"></span> Good (0-50)</div>
-      <div class="legend-item"><span class="dot" style="background:#ffff00"></span> Moderate (51-100)</div>
-      <div class="legend-item"><span class="dot" style="background:#ff7e00"></span> Sensitive (101-150)</div>
-      <div class="legend-item"><span class="dot" style="background:#ff0000"></span> Unhealthy (151+)</div>
-      <div class="legend-item"><span class="tri"></span> SPOD Gas Sensor</div>
-    </div>
   </aside>
-  <div id="main-content"><div id="map"></div><div id="chart-box"><canvas id="airChart"></canvas></div></div>
+  <div id="main-content">
+    <div id="map"></div>
+    <div id="chart-box"><canvas id="airChart"></canvas></div>
+  </div>
 </div>
 
 <script>
   const PURPLE_AIR_KEY = "9ADB5C6C-A9B0-11EF-A261-42010A80000F";
   const PROXY = "https://corsproxy.io/?"; 
-  const DC_REF_ID = "175563"; // DC Area Comparison Sensor
+  const DC_REF_ID = "175563"; // Reference for DC Area Line
 
   const SENSORS = {
     "284362": "EJAT.PG.1.284362", "52823": "EJAT.CV.6.52823", "53677": "EJAT.CV.1.53677",
@@ -88,14 +87,26 @@
   const map = L.map('map').setView([38.922, -76.915], 14);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
+  // LEGEND AT BOTTOM LEFT
+  const legend = L.control({position: 'bottomleft'});
+  legend.onAdd = function() {
+    const div = L.DomUtil.create('div', 'map-legend');
+    div.innerHTML = `
+      <div class="legend-item"><span class="dot" style="background:#00e400"></span> Good (0-50)</div>
+      <div class="legend-item"><span class="dot" style="background:#ffff00"></span> Moderate (51-100)</div>
+      <div class="legend-item"><span class="dot" style="background:#ff7e00"></span> Sensitive (101-150)</div>
+      <div class="legend-item"><span class="dot" style="background:#ff0000"></span> Unhealthy (151+)</div>
+      <div class="legend-item"><span class="tri"></span> SPOD Gas Sensor</div>`;
+    return div;
+  };
+  legend.addTo(map);
+
   const chart = new Chart(document.getElementById('airChart').getContext('2d'), {
     type: 'line',
-    data: { 
-      datasets: [
-        { label: 'Local EJAT Station', data: [], borderColor: '#4477ce', tension: 0.1, fill: true, backgroundColor: 'rgba(68, 119, 206, 0.1)' },
-        { label: 'DC City Area Avg', data: [], borderColor: '#ff0000', borderDash: [5, 5], tension: 0.1, fill: false }
-      ]
-    },
+    data: { datasets: [
+      { label: 'Local EJAT Station', data: [], borderColor: '#4477ce', tension: 0.1, fill: true, backgroundColor: 'rgba(68, 119, 206, 0.1)' },
+      { label: 'DC City Area Avg', data: [], borderColor: '#ff0000', borderDash: [5, 5], tension: 0.1, fill: false }
+    ]},
     options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time' }, y: { beginAtZero: true } } }
   });
 
@@ -110,20 +121,33 @@
     if (aqi <= 50) return "#00e400"; if (aqi <= 100) return "#ffff00"; if (aqi <= 150) return "#ff7e00"; return "#ff0000";
   }
 
+  // FIND CLOSEST STATION LOGIC
   async function findAddress() {
     const addr = document.getElementById('addrInput').value;
     if (!addr) return;
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr + ", Cheverly, MD")}`;
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr)}`;
     try {
       const resp = await fetch(url);
       const data = await resp.json();
       if (data.length > 0) {
-        const lat = data[0].lat;
-        const lon = data[0].lon;
-        map.setView([lat, lon], 16);
-        L.marker([lat, lon], {icon: L.divIcon({className: 'user-home', html: '🏠', iconSize: [30, 30]})}).addTo(map);
+        const userLat = parseFloat(data[0].lat);
+        const userLon = parseFloat(data[0].lon);
+        map.setView([userLat, userLon], 15);
+        
+        let nearestId = null;
+        let minDist = Infinity;
+        
+        for (let id in markerMap) {
+          const mPos = markerMap[id].getLatLng();
+          const dist = map.distance([userLat, userLon], mPos);
+          if (dist < minDist) { minDist = dist; nearestId = id; }
+        }
+        if (nearestId) {
+          document.getElementById('devSel').value = nearestId;
+          handleDropdownChange(nearestId);
+        }
       }
-    } catch(e) { console.error("Search failed", e); }
+    } catch(e) { console.error(e); }
   }
 
   async function updateDisplay(id) {
@@ -132,23 +156,20 @@
       document.getElementById('statAQI').style.color = "var(--orange)"; return;
     }
     const start = Math.floor(Date.now()/1000)-86400;
-    
-    // Fetch Local Data
     const localUrl = `${PROXY}${encodeURIComponent(`https://api.purpleair.com/v1/sensors/${id}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`)}`;
-    // Fetch DC Comparison Data
     const dcUrl = `${PROXY}${encodeURIComponent(`https://api.purpleair.com/v1/sensors/${DC_REF_ID}/history?fields=pm2.5_atm&average=60&start_timestamp=${start}`)}`;
 
     try {
-      const [resLocal, resDC] = await Promise.all([
-        fetch(localUrl, { headers: { "X-API-Key": PURPLE_AIR_KEY } }).then(r => r.json()),
-        fetch(dcUrl, { headers: { "X-API-Key": PURPLE_AIR_KEY } }).then(r => r.json())
+      const [localRes, dcRes] = await Promise.all([
+        fetch(localUrl, { headers: { "X-API-Key": PURPLE_AIR_KEY } }).then(r=>r.json()),
+        fetch(dcUrl, { headers: { "X-API-Key": PURPLE_AIR_KEY } }).then(r=>r.json())
       ]);
-
-      const localData = (resLocal.data || []).sort((a,b)=>a[0]-b[0]).map(r => ({ x: r[0]*1000, y: calculateCEAQI(r[1], id) }));
-      const dcData = (resDC.data || []).sort((a,b)=>a[0]-b[0]).map(r => ({ x: r[0]*1000, y: calculateCEAQI(r[1], DC_REF_ID) }));
-
-      chart.data.datasets[0].data = localData; 
-      chart.data.datasets[1].data = dcData;
+      
+      const localData = (localRes.data || []).sort((a,b)=>a[0]-b[0]).map(r => ({ x: r[0]*1000, y: calculateCEAQI(r[1], id) }));
+      const dcData = (dcRes.data || []).sort((a,b)=>a[0]-b[0]).map(r => ({ x: r[0]*1000, y: calculateCEAQI(r[1], DC_REF_ID) }));
+      
+      chart.data.datasets[0].data = localData;
+      chart.data.datasets[1].data = dcData; // RESTORED DC LINE
       chart.update();
 
       const aqi = localData.length > 0 ? localData[localData.length-1].y : 0;
@@ -157,13 +178,14 @@
       document.getElementById('statAQI').style.color = getAQIColor(aqi);
       const adv = document.getElementById('healthAdvice'); adv.style.display = "block";
       adv.innerHTML = aqi > 150 ? "<b>ALERT:</b> Unhealthy." : aqi > 100 ? "<b>CAUTION:</b> Sensitive Groups." : "Air quality is satisfactory.";
-    } catch(e) { console.log("Fetch Error", e); }
+    } catch(e) { console.log(e); }
   }
 
   function handleDropdownChange(id) { if(markerMap[id]) { map.flyTo(markerMap[id].getLatLng(), 15); updateDisplay(id); } }
 
   async function init() {
     const sel = document.getElementById('devSel');
+    // RESTORED SPODS
     SPODS.forEach(s => {
       const m = L.marker([s.lat, s.lon], {icon: L.divIcon({ className: 'spod', html: `<div style="width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:18px solid var(--orange);"></div>`, iconAnchor: [10, 18] })}).addTo(map);
       markerMap[s.sn] = m; sel.add(new Option(s.name, s.sn));
@@ -182,7 +204,7 @@
           m.on('click', () => { sel.value = id; handleDropdownChange(id); });
         }
       });
-    } catch(e) { console.log("Map Load Error", e); }
+    } catch(e) { console.log(e); }
     updateDisplay("203577");
   }
   init();
